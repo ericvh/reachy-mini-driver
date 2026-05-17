@@ -13,7 +13,11 @@ import asyncio
 import logging
 import threading
 
+from pathlib import Path
+
 from fastapi import Body, FastAPI, File, UploadFile
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from reachy_mini import ReachyMini, ReachyMiniApp
 
 from reachy_mini_driver.app_settings import (
@@ -37,11 +41,53 @@ logger = logging.getLogger(__name__)
 SETTINGS_HOST = "0.0.0.0"
 
 
+def settings_static_dir() -> Path:
+    """Directory containing ``index.html`` for the dashboard settings UI."""
+    return Path(__file__).resolve().parent / "static"
+
+
+def _settings_route_paths(settings_app: FastAPI) -> set[str]:
+    return {getattr(route, "path", "") for route in settings_app.routes}
+
+
+def mount_settings_ui(settings_app: FastAPI | None) -> None:
+    """Serve ``/`` and ``/static`` from ``reachy_mini_driver/static`` (packaged data).
+
+    ``ReachyMiniApp`` resolves static files next to the entry-point module; the HF
+    Space wrapper lives in ``reachy_mini_device_connect_space`` and has no ``static/``
+    folder, which would otherwise yield only API routes and ``404`` on ``/``.
+    """
+    if settings_app is None:
+        return
+
+    static_dir = settings_static_dir()
+    index_file = static_dir / "index.html"
+    if not index_file.is_file():
+        logger.error("Settings UI missing at %s — / will not be available", index_file)
+        return
+
+    paths = _settings_route_paths(settings_app)
+    if "/static" not in paths:
+        settings_app.mount(
+            "/static",
+            StaticFiles(directory=static_dir),
+            name="reachy_mini_driver_static",
+        )
+
+    if "/" not in paths:
+
+        @settings_app.get("/")
+        async def settings_index() -> FileResponse:
+            return FileResponse(index_file)
+
+
 def register_device_connect_settings_routes(settings_app: FastAPI | None) -> None:
     """Register ``/api/settings`` and related routes on the given FastAPI app."""
 
     if settings_app is None:
         return
+
+    mount_settings_ui(settings_app)
 
     @settings_app.get("/api/health")
     def health() -> dict[str, str]:
@@ -127,6 +173,10 @@ class ReachyDeviceConnectApp(ReachyMiniApp):
 
     custom_app_url: str | None = f"http://{SETTINGS_HOST}:{SETTINGS_PORT}"
     request_media_backend: str | None = "default"
+
+    def _get_instance_path(self) -> Path:
+        """Always use packaged driver static files, not the HF Space wrapper module."""
+        return Path(__file__).resolve()
 
     def __init__(self, running_on_wireless: bool = False) -> None:
         super().__init__(running_on_wireless)

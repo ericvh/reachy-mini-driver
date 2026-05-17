@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import logging
 import threading
 
 from reachy_mini import ReachyMini, ReachyMiniApp
@@ -14,11 +13,9 @@ from reachy_mini_driver.reachy_app import (
     run_device_connect_app,
 )
 
-logger = logging.getLogger(__name__)
-
 
 class ReachyMiniDeviceConnectSpace(ReachyMiniApp):
-    """HF Space shell listing; implementation lives in ``reachy_mini_driver.reachy_app``."""
+    """HF Space entry; settings UI is mounted from ``reachy_mini_driver/static``."""
 
     custom_app_url: str | None = f"http://{SETTINGS_HOST}:{SETTINGS_PORT}"
     request_media_backend: str | None = "default"
@@ -32,7 +29,9 @@ class ReachyMiniDeviceConnectSpace(ReachyMiniApp):
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
+    from reachy_mini_driver.logging_setup import configure_driver_logging
+
+    configure_driver_logging()
     app = ReachyMiniDeviceConnectSpace()
     try:
         app.wrapped_run()
