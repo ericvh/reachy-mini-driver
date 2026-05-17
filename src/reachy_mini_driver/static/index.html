@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Device Connect Driver</title>
+  <style>
+    :root { font-family: system-ui, sans-serif; color: #1a1a1a; }
+    body { max-width: 42rem; margin: 2rem auto; padding: 0 1rem; line-height: 1.45; }
+    h1 { font-size: 1.25rem; }
+    label { display: block; font-size: 0.85rem; font-weight: 600; margin-top: 1rem; }
+    input[type="text"], select { width: 100%; box-sizing: border-box; padding: 0.4rem 0.5rem; margin-top: 0.25rem; }
+    .row { display: flex; gap: 1.5rem; flex-wrap: wrap; }
+    .row label { flex: 1 1 12rem; }
+    button { margin-top: 1.25rem; padding: 0.45rem 1rem; cursor: pointer; }
+    #status { margin-top: 1rem; font-size: 0.9rem; }
+    .hint { font-size: 0.82rem; color: #444; margin-top: 0.35rem; }
+    .warn { margin-top: 1.25rem; padding: 0.75rem; background: #fff5e6; border-radius: 6px; font-size: 0.85rem; }
+  </style>
+</head>
+<body>
+  <h1>Reachy Mini — Device Connect</h1>
+  <p>Edit settings below, click <strong>Save</strong>, then restart the app from the Reachy dashboard for changes to apply.</p>
+  <div class="warn">
+    Credential files are paths on this robot (for example USB copy or SCP). Values here are merged with environment variables documented in the driver README.
+  </div>
+
+  <form id="f">
+    <label><input type="checkbox" id="use_portal" /> Use Device Connect portal (cloud NATS)</label>
+
+    <label for="nats_credentials_file">Credentials file path</label>
+    <input type="text" id="nats_credentials_file" placeholder="/home/pollen/device.creds.json" autocomplete="off" />
+    <p class="hint">Portal JSON or <code>.creds</code>. Required when portal is enabled (unless NATS_CREDENTIALS_FILE is set in the environment).</p>
+
+    <div class="row">
+      <label>Device ID (optional)<input type="text" id="device_id" /></label>
+      <label>Tenant (optional)<input type="text" id="tenant" /></label>
+    </div>
+
+    <label for="reachy_target">Reachy daemon <code>host:port</code></label>
+    <input type="text" id="reachy_target" value="127.0.0.1:8000" />
+    <p class="hint">On the robot, keep <code>127.0.0.1:8000</code>.</p>
+
+    <label for="transport_mode">Realtime transport</label>
+    <select id="transport_mode">
+      <option value="websocket">websocket (recommended on robot)</option>
+      <option value="auto">auto</option>
+      <option value="zenoh">zenoh</option>
+      <option value="http">http</option>
+    </select>
+
+    <div class="row">
+      <label><input type="checkbox" id="allow_insecure" /> Allow insecure Device Connect</label>
+      <label><input type="checkbox" id="simulate" /> Simulated Reachy target</label>
+      <label><input type="checkbox" id="no_media" /> Disable SDK media</label>
+    </div>
+
+    <details>
+      <summary style="margin-top:1rem;cursor:pointer">Advanced (non‑portal broker)</summary>
+      <label for="messaging_backend">Messaging backend</label>
+      <input type="text" id="messaging_backend" placeholder="nats or zenoh — leave blank for default / portal" />
+
+      <label for="messaging_urls">Messaging URLs (comma-separated)</label>
+      <input type="text" id="messaging_urls" placeholder="nats://127.0.0.1:4222" />
+
+      <label for="discovery_mode">Discovery mode</label>
+      <input type="text" id="discovery_mode" placeholder="d2d, infra …" />
+
+      <label for="portal_credentials_dir">Portal credentials directory (auto-discover)</label>
+      <input type="text" id="portal_credentials_dir" />
+
+      <label for="portal_credentials_glob">Portal credentials glob</label>
+      <input type="text" id="portal_credentials_glob" />
+
+      <div class="row">
+        <label>MHP rig<input type="text" id="mhp_rig" /></label>
+        <label>NATS subject prefix<input type="text" id="reachy_prefix" /></label>
+      </div>
+    </details>
+
+    <button type="submit">Save</button>
+    <button type="button" id="validateBtn">Validate</button>
+    <button type="button" id="reloadBtn">Reload</button>
+  </form>
+
+  <p id="status"></p>
+
+  <script>
+    const fields = ["use_portal","nats_credentials_file","device_id","tenant","reachy_target","transport_mode",
+      "allow_insecure","simulate","no_media","messaging_backend","messaging_urls","discovery_mode",
+      "portal_credentials_dir","portal_credentials_glob","mhp_rig","reachy_prefix"];
+
+    function setStatus(msg, ok) {
+      const el = document.getElementById("status");
+      el.textContent = msg;
+      el.style.color = ok ? "#0a7a2d" : "#a30";
+    }
+
+    function formToBody() {
+      const body = {};
+      for (const id of fields) {
+        const el = document.getElementById(id);
+        if (!el) continue;
+        if (el.type === "checkbox") body[id] = el.checked;
+        else body[id] = el.value;
+      }
+      return body;
+    }
+
+    function fill(d) {
+      for (const id of fields) {
+        const el = document.getElementById(id);
+        if (!el) continue;
+        if (el.type === "checkbox") el.checked = !!d[id];
+        else el.value = d[id] ?? "";
+      }
+    }
+
+    async function load() {
+      const r = await fetch("/api/settings");
+      if (!r.ok) throw new Error(await r.text());
+      fill(await r.json());
+      setStatus("Loaded settings.", true);
+    }
+
+    document.getElementById("f").onsubmit = async (e) => {
+      e.preventDefault();
+      const body = formToBody();
+      const r = await fetch("/api/settings", {
+        method: "PUT",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify(body),
+      });
+      if (!r.ok) { setStatus(await r.text(), false); return; }
+      const j = await r.json();
+      fill(j.settings);
+      setStatus("Saved. Restart the app from the Reachy dashboard to apply.", true);
+    };
+
+    document.getElementById("validateBtn").onclick = async () => {
+      const r = await fetch("/api/validate", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify(formToBody()),
+      });
+      const j = await r.json();
+      setStatus(j.ok ? "Validation OK." : ("Invalid: " + j.error), j.ok);
+    };
+
+    document.getElementById("reloadBtn").onclick = () => load().catch(err => setStatus(String(err), false));
+    load().catch(err => setStatus(String(err), false));
+  </script>
+</body>
+</html>

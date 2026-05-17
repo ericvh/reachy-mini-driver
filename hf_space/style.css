@@ -1,0 +1,25 @@
+:root {
+  font-family: system-ui, sans-serif;
+  max-width: 52rem;
+  margin: 0 auto;
+  padding: 2rem;
+  color: #1a1a1a;
+}
+
+h1 {
+  font-size: 1.4rem;
+}
+
+p {
+  line-height: 1.55;
+}
+
+a {
+  color: #0f6ecd;
+}
+
+code {
+  background: #f3f4f6;
+  padding: 0.1rem 0.35rem;
+  border-radius: 4px;
+}

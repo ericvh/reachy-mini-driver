@@ -1,0 +1,53 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "reachy-mini-driver"
+version = "0.1.0"
+description = "Standalone Reachy Mini Device Connect/MHP driver"
+readme = "README.md"
+# reachy-mini 1.7.x needs libusb_package>=1.0.26.3, which ships wheels for
+# cp310–cp313 only (no cp314 wheel or sdist on PyPI as of 2026-05).
+requires-python = ">=3.11,<3.14"
+dependencies = [
+  "device-connect-edge",
+  "device-connect-agent-tools",
+  "websockets",
+]
+
+[project.optional-dependencies]
+dev = [
+  "ruff",
+]
+websocket = [
+  "websockets",
+]
+media = [
+  "numpy",
+  "libusb_package>=1.0.26.3",
+  "reachy-mini>=1.7.3",
+]
+# Reachy Mini HF app (ReachyMiniApp + dashboard); install with media for camera/mic tools.
+app = [
+  "reachy-mini>=1.7.3",
+]
+
+[project.scripts]
+reachy-mini-driver = "reachy_mini_driver.__main__:main"
+
+[project.entry-points."reachy_mini_apps"]
+reachy_mini_device_connect = "reachy_mini_driver.reachy_app:ReachyDeviceConnectApp"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+
+[tool.ruff]
+line-length = 100
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+reachy_mini_driver = ["static/**/*"]

@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "reachy-mini-device-connect-space"
+version = "0.1.0"
+description = "Hugging Face Space package for the Reachy Mini Device Connect driver"
+readme = "README.md"
+requires-python = ">=3.11,<3.14"
+keywords = ["reachy-mini", "reachy-mini-app", "device-connect"]
+dependencies = [
+  "reachy-mini>=1.7.3",
+  "reachy-mini-driver[app,media] @ git+https://github.com/YOUR_GITHUB_USERNAME/reachy-mini-driver.git@main",
+]
+
+[project.entry-points.reachy_mini_apps]
+reachy-mini-device-connect-space = "reachy_mini_device_connect_space.main:ReachyMiniDeviceConnectSpace"
+
+[tool.setuptools.packages.find]
+where = ["."]

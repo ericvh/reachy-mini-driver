@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "device-connect": {
+      "command": "python",
+      "args": ["-m", "device_connect_agent_tools.mcp"],
+      "env": {
+        "DEVICE_CONNECT_ALLOW_INSECURE": "true"
+      }
+    }
+  }
+}
+
