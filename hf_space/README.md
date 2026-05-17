@@ -1,11 +1,11 @@
 ---
 title: Device Connect Driver
 emoji: 📡
-colorFrom: slate
+colorFrom: gray
 colorTo: indigo
 sdk: static
 pinned: false
-short_description: Run the Device Connect/MHP Reachy Mini driver with a LAN settings UI.
+short_description: Reachy Mini Device Connect driver with portal settings UI
 tags:
   - reachy_mini
   - reachy_mini_python_app

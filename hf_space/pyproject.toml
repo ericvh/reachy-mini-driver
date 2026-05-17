@@ -11,7 +11,7 @@ requires-python = ">=3.11,<3.14"
 keywords = ["reachy-mini", "reachy-mini-app", "device-connect"]
 dependencies = [
   "reachy-mini>=1.7.3",
-  "reachy-mini-driver[app,media] @ git+https://github.com/YOUR_GITHUB_USERNAME/reachy-mini-driver.git@main",
+  "reachy-mini-driver[app,media] @ git+https://github.com/ericvh/reachy-mini-driver.git@main",
 ]
 
 [project.entry-points.reachy_mini_apps]
