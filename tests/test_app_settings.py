@@ -15,6 +15,24 @@ from reachy_mini_driver.app_settings import (
 
 
 class TestAppSettings(unittest.TestCase):
+    def test_defaults_disable_portal_without_config_file(self) -> None:
+        with TemporaryDirectory() as tmp:
+            import reachy_mini_driver.app_settings as app_settings_mod
+
+            config_dir = Path(tmp) / "cfg"
+            config_dir.mkdir()
+            original_default = app_settings_mod.default_config_path
+
+            def _config_path() -> Path:
+                return config_dir / "device_connect_app.json"
+
+            app_settings_mod.default_config_path = _config_path  # type: ignore[assignment]
+            try:
+                loaded = load_app_settings()
+                self.assertFalse(loaded.use_portal)
+            finally:
+                app_settings_mod.default_config_path = original_default  # type: ignore[assignment]
+
     def test_roundtrip_json(self) -> None:
         with TemporaryDirectory() as tmp:
             path = Path(tmp) / "cfg.json"

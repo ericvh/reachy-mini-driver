@@ -98,7 +98,7 @@ While the app is running, **settings and validation** are served on **`http://<r
 ~/.config/reachy_mini_driver/device_connect_app.json
 ```
 
-**Typical robot setup:** portal enabled, upload **`.json`** or **`.creds`** on the app settings page (`http://<robot-ip>:8842`) or set **`nats_credentials_file`** to an on-disk path, **`reachy_target`** `127.0.0.1:8000`, **`transport_mode`** `websocket`.
+**Typical robot setup:** open the settings page (`http://<robot-ip>:8842`), enable portal mode, upload **`.json`** or **`.creds`** (or set **`nats_credentials_file`**), then set **`reachy_target`** `127.0.0.1:8000` and **`transport_mode`** `websocket`. Portal mode is **off** by default so the app can start before credentials exist.
 
 Environment variables documented in `config.py` (for example `NATS_CREDENTIALS_FILE`, `DEVICE_CONNECT_PORTAL`) still layer on top of the JSON file—use env for secrets injected by your process manager.
 

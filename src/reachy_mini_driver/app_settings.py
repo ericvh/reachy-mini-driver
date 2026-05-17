@@ -22,7 +22,7 @@ class DeviceConnectAppSettings(BaseModel):
     """
 
     use_portal: bool = Field(
-        default=True,
+        default=False,
         description="Use Device Connect cloud portal (NATS + credentials file).",
     )
     nats_credentials_file: str = Field(
