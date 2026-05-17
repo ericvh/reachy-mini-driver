@@ -23,26 +23,28 @@ Thin [Hugging Face Space](https://huggingface.co/docs/hub/spaces) package wrappi
 **Local monorepo / `reachy-mini-app-assistant check`:**
 
 ```bash
-python hf_space/sync_driver_dependency.py local
-reachy-mini-app-assistant check hf_space
+python device-connect-driver/sync_driver_dependency.py local
+reachy-mini-app-assistant check device-connect-driver
 ```
 
 **Reset committed placeholder** (invalid until you set GitHub username):
 
 ```bash
-python hf_space/sync_driver_dependency.py template
+python device-connect-driver/sync_driver_dependency.py template
 ```
 
 **Before `reachy-mini-app-assistant publish`** (HF uploads only this folder—use Git or PyPI):
 
 ```bash
-python hf_space/sync_driver_dependency.py git --url 'git+https://github.com/<you>/reachy-mini-driver.git@main'
-# or: python hf_space/sync_driver_dependency.py pypi --version 0.1.0
+python device-connect-driver/sync_driver_dependency.py git --url 'git+https://github.com/<you>/reachy-mini-driver.git@main'
+# or: python device-connect-driver/sync_driver_dependency.py pypi --version 0.1.0
 
-reachy-mini-app-assistant publish hf_space
+reachy-mini-app-assistant publish device-connect-driver
 ```
 
 ### Community marketplace
+
+The folder name **`device-connect-driver`** is the Hugging Face Space slug (e.g. `ericvh/device-connect-driver` in the app marketplace—not `hf_space`). After renaming locally, create the Space on the Hub or rename the old one, then point the nested git remote at `https://huggingface.co/spaces/<user>/device-connect-driver` before publishing.
 
 Uses the standard Reachy flow: [Make and publish your Reachy Mini App](https://huggingface.co/blog/pollen-robotics/make-and-publish-your-reachy-mini-apps).
 

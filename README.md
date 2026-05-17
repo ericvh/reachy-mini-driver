@@ -29,7 +29,7 @@ depend on Strands Robots (see [Acknowledgments](#acknowledgments)).
 - `src/reachy_mini_driver/runtime_launcher.py` - Shared CLI and app startup.
 - `src/reachy_mini_driver/app_settings.py` - JSON settings for the dashboard app UI.
 - `src/reachy_mini_driver/static/` - Embedded settings HTML for the Reachy app.
-- `hf_space/` - Hugging Face Spaces wrapper (`reachy-mini-app-assistant publish`); see `hf_space/README.md`.
+- `device-connect-driver/` - Hugging Face Spaces wrapper (`reachy-mini-app-assistant publish`); see `device-connect-driver/README.md`.
 - `examples/claude_desktop_config.json` - MCP bridge config shape.
 - `tests/` - hardware-free unit tests.
 
@@ -98,13 +98,13 @@ While the app is running, **settings and validation** are served on **`http://<r
 ~/.config/reachy_mini_driver/device_connect_app.json
 ```
 
-**Typical robot setup:** portal enabled, **`nats_credentials_file`** set to an on-disk path (scp/USB) to your portal credentials, **`reachy_target`** `127.0.0.1:8000`, **`transport_mode`** `websocket`.
+**Typical robot setup:** portal enabled, upload **`.json`** or **`.creds`** on the app settings page (`http://<robot-ip>:8842`) or set **`nats_credentials_file`** to an on-disk path, **`reachy_target`** `127.0.0.1:8000`, **`transport_mode`** `websocket`.
 
 Environment variables documented in `config.py` (for example `NATS_CREDENTIALS_FILE`, `DEVICE_CONNECT_PORTAL`) still layer on top of the JSON file—use env for secrets injected by your process manager.
 
-To publish your own HF Space repo, build `hf_space/pyproject.toml` with
-`hf_space/sync_driver_dependency.py`, run `reachy-mini-app-assistant check hf_space`, then
-see `hf_space/README.md`.
+To publish your own HF Space repo, build `device-connect-driver/pyproject.toml` with
+`device-connect-driver/sync_driver_dependency.py`, run `reachy-mini-app-assistant check device-connect-driver`, then
+see `device-connect-driver/README.md`.
 
 ## Exposed Device Functions
 

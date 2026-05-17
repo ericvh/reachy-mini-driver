@@ -13,14 +13,16 @@ import asyncio
 import logging
 import threading
 
-from fastapi import Body, FastAPI
+from fastapi import Body, FastAPI, File, UploadFile
 from reachy_mini import ReachyMini, ReachyMiniApp
 
 from reachy_mini_driver.app_settings import (
     DeviceConnectAppSettings,
     load_app_settings,
     save_app_settings,
+    save_portal_credentials_upload,
 )
+from reachy_mini_driver.config import PortalCredentials, load_portal_credentials
 from reachy_mini_driver.runtime_launcher import merge_app_settings_with_env, run_device_connect
 
 logger = logging.getLogger(__name__)
@@ -56,6 +58,44 @@ def register_device_connect_settings_routes(settings_app: FastAPI | None) -> Non
         except ValueError as exc:
             return {"ok": False, "error": str(exc)}
         return {"ok": True, "error": None}
+
+    @settings_app.post("/api/credentials/upload")
+    async def api_upload_credentials(file: UploadFile = File(...)) -> dict:
+        """Save portal credentials to disk and point settings at the new path."""
+        if not file.filename:
+            return {"ok": False, "error": "missing filename"}
+        try:
+            raw = await file.read()
+            dest = save_portal_credentials_upload(file.filename, raw)
+            settings = load_app_settings()
+            settings = settings.model_copy(
+                update={
+                    "use_portal": True,
+                    "nats_credentials_file": str(dest),
+                }
+            )
+            try:
+                meta = load_portal_credentials(dest)
+            except (ValueError, OSError):
+                meta = PortalCredentials(path=dest)
+            if meta.device_id and not settings.device_id.strip():
+                settings = settings.model_copy(update={"device_id": meta.device_id})
+            if meta.tenant and not settings.tenant.strip():
+                settings = settings.model_copy(update={"tenant": meta.tenant})
+            save_app_settings(settings)
+            merge_app_settings_with_env(settings)
+        except ValueError as exc:
+            return {"ok": False, "error": str(exc)}
+        except Exception as exc:
+            logger.exception("credentials upload failed")
+            return {"ok": False, "error": str(exc)}
+        return {
+            "ok": True,
+            "path": str(dest),
+            "device_id": meta.device_id,
+            "tenant": meta.tenant,
+            "settings": settings.model_dump(),
+        }
 
 
 def run_device_connect_app(reachy_mini: ReachyMini, stop_event: threading.Event) -> None:

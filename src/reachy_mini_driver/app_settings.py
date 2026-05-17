@@ -9,6 +9,9 @@ from pydantic import BaseModel, Field
 
 
 DEFAULT_CONFIG_REL = Path(".config") / "reachy_mini_driver" / "device_connect_app.json"
+CREDENTIALS_SUBDIR = "credentials"
+ALLOWED_CREDENTIAL_SUFFIXES = frozenset({".json", ".creds"})
+MAX_CREDENTIALS_UPLOAD_BYTES = 256 * 1024
 
 
 class DeviceConnectAppSettings(BaseModel):
@@ -65,6 +68,30 @@ class DeviceConnectAppSettings(BaseModel):
 
 def default_config_path() -> Path:
     return Path.home() / DEFAULT_CONFIG_REL
+
+
+def credentials_storage_dir() -> Path:
+    """Directory for portal credential files uploaded from the settings UI."""
+    directory = default_config_path().parent / CREDENTIALS_SUBDIR
+    directory.mkdir(parents=True, exist_ok=True)
+    return directory
+
+
+def save_portal_credentials_upload(filename: str, data: bytes) -> Path:
+    """Write an uploaded portal credentials file and return its absolute path."""
+    if len(data) > MAX_CREDENTIALS_UPLOAD_BYTES:
+        raise ValueError(
+            f"credentials file too large (max {MAX_CREDENTIALS_UPLOAD_BYTES // 1024} KiB)"
+        )
+    safe_name = Path(filename).name
+    if not safe_name or safe_name in {".", ".."}:
+        raise ValueError("invalid credentials filename")
+    suffix = Path(safe_name).suffix.lower()
+    if suffix not in ALLOWED_CREDENTIAL_SUFFIXES:
+        raise ValueError("credentials file must be .json or .creds")
+    dest = credentials_storage_dir() / safe_name
+    dest.write_bytes(data)
+    return dest.resolve()
 
 
 def load_app_settings(path: Path | None = None) -> DeviceConnectAppSettings:

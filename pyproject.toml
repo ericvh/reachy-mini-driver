@@ -31,6 +31,7 @@ media = [
 # Reachy Mini HF app (ReachyMiniApp + dashboard); install with media for camera/mic tools.
 app = [
   "reachy-mini>=1.7.3",
+  "python-multipart>=0.0.9",
 ]
 
 [project.scripts]

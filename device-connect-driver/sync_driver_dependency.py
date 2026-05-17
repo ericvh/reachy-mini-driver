@@ -1,25 +1,25 @@
-"""Generate ``hf_space/pyproject.toml`` with a pinned ``reachy-mini-driver`` direct URL.
+"""Generate ``device-connect-driver/pyproject.toml`` with a pinned ``reachy-mini-driver`` direct URL.
 
-``reachy-mini-app-assistant check`` installs ``hf_space`` into a disposable venv; bare
+``reachy-mini-app-assistant check`` installs ``device-connect-driver`` into a disposable venv; bare
 ``file:..`` relative URLs often resolve from the wrong working directory.
 
 Usage:
 
-  python hf_space/sync_driver_dependency.py local
-  reachy-mini-app-assistant check hf_space
+  python device-connect-driver/sync_driver_dependency.py local
+  reachy-mini-app-assistant check device-connect-driver
 
 Publish to Hugging Face (after pushing this driver repo to GitHub):
 
-  python hf_space/sync_driver_dependency.py git --url 'git+https://github.com/you/reachy-mini-driver.git@main'
-  reachy-mini-app-assistant publish hf_space
+  python device-connect-driver/sync_driver_dependency.py git --url 'git+https://github.com/you/reachy-mini-driver.git@main'
+  reachy-mini-app-assistant publish device-connect-driver
 
 Or install from PyPI (when published):
 
-  python hf_space/sync_driver_dependency.py pypi --version 0.2.0
+  python device-connect-driver/sync_driver_dependency.py pypi --version 0.2.0
 
 Reset tracked placeholder for git (default before you fork):
 
-  python hf_space/sync_driver_dependency.py template
+  python device-connect-driver/sync_driver_dependency.py template
 """
 
 from __future__ import annotations

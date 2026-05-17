@@ -8,29 +8,41 @@
     :root { font-family: system-ui, sans-serif; color: #1a1a1a; }
     body { max-width: 42rem; margin: 2rem auto; padding: 0 1rem; line-height: 1.45; }
     h1 { font-size: 1.25rem; }
+    h2 { font-size: 1rem; margin-top: 1.5rem; }
     label { display: block; font-size: 0.85rem; font-weight: 600; margin-top: 1rem; }
     input[type="text"], select { width: 100%; box-sizing: border-box; padding: 0.4rem 0.5rem; margin-top: 0.25rem; }
     .row { display: flex; gap: 1.5rem; flex-wrap: wrap; }
     .row label { flex: 1 1 12rem; }
-    button { margin-top: 1.25rem; padding: 0.45rem 1rem; cursor: pointer; }
+    button { margin-top: 1.25rem; margin-right: 0.5rem; padding: 0.45rem 1rem; cursor: pointer; }
     #status { margin-top: 1rem; font-size: 0.9rem; }
     .hint { font-size: 0.82rem; color: #444; margin-top: 0.35rem; }
     .warn { margin-top: 1.25rem; padding: 0.75rem; background: #fff5e6; border-radius: 6px; font-size: 0.85rem; }
+    .upload-box { margin-top: 0.5rem; padding: 0.75rem; border: 1px dashed #888; border-radius: 6px; background: #fafafa; }
+    .upload-box input[type="file"] { margin-top: 0.35rem; max-width: 100%; }
   </style>
 </head>
 <body>
   <h1>Reachy Mini — Device Connect</h1>
   <p>Edit settings below, click <strong>Save</strong>, then restart the app from the Reachy dashboard for changes to apply.</p>
   <div class="warn">
-    Credential files are paths on this robot (for example USB copy or SCP). Values here are merged with environment variables documented in the driver README.
+    Upload stores credentials on this robot under <code>~/.config/reachy_mini_driver/credentials/</code>.
+    Environment variables (for example <code>NATS_CREDENTIALS_FILE</code>) still override at process start.
+  </div>
+
+  <h2>Portal credentials</h2>
+  <div class="upload-box">
+    <label for="credentials_file">Upload credentials file</label>
+    <input type="file" id="credentials_file" accept=".json,.creds,application/json" />
+    <p class="hint">Device Connect portal <code>.json</code> or NATS <code>.creds</code> (max 256 KiB). Upload enables portal mode and fills the path below.</p>
+    <button type="button" id="uploadBtn">Upload credentials</button>
   </div>
 
   <form id="f">
     <label><input type="checkbox" id="use_portal" /> Use Device Connect portal (cloud NATS)</label>
 
     <label for="nats_credentials_file">Credentials file path</label>
-    <input type="text" id="nats_credentials_file" placeholder="/home/pollen/device.creds.json" autocomplete="off" />
-    <p class="hint">Portal JSON or <code>.creds</code>. Required when portal is enabled (unless NATS_CREDENTIALS_FILE is set in the environment).</p>
+    <input type="text" id="nats_credentials_file" placeholder="/home/pollen/.config/reachy_mini_driver/credentials/device.creds.json" autocomplete="off" />
+    <p class="hint">Set manually or use upload above. Required when portal is enabled (unless <code>NATS_CREDENTIALS_FILE</code> is set in the environment).</p>
 
     <div class="row">
       <label>Device ID (optional)<input type="text" id="device_id" /></label>
@@ -122,6 +134,30 @@
       fill(await r.json());
       setStatus("Loaded settings.", true);
     }
+
+    document.getElementById("uploadBtn").onclick = async () => {
+      const input = document.getElementById("credentials_file");
+      if (!input.files || !input.files.length) {
+        setStatus("Choose a .json or .creds file first.", false);
+        return;
+      }
+      const file = input.files[0];
+      const form = new FormData();
+      form.append("file", file, file.name);
+      const r = await fetch("/api/credentials/upload", { method: "POST", body: form });
+      const j = await r.json();
+      if (!j.ok) {
+        setStatus(j.error || "Upload failed", false);
+        return;
+      }
+      fill(j.settings);
+      let msg = `Uploaded to ${j.path}.`;
+      if (j.device_id) msg += ` device_id=${j.device_id}`;
+      if (j.tenant) msg += ` tenant=${j.tenant}`;
+      msg += " Restart the app from the Reachy dashboard to apply.";
+      setStatus(msg, true);
+      input.value = "";
+    };
 
     document.getElementById("f").onsubmit = async (e) => {
       e.preventDefault();
