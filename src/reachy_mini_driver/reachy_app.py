@@ -18,12 +18,18 @@ from reachy_mini import ReachyMini, ReachyMiniApp
 
 from reachy_mini_driver.app_settings import (
     DeviceConnectAppSettings,
+    default_config_path,
     load_app_settings,
     save_app_settings,
     save_portal_credentials_upload,
 )
 from reachy_mini_driver.config import PortalCredentials, load_portal_credentials
-from reachy_mini_driver.runtime_launcher import merge_app_settings_with_env, run_device_connect
+from reachy_mini_driver.logging_setup import configure_driver_logging
+from reachy_mini_driver.runtime_launcher import (
+    log_run_config,
+    merge_app_settings_with_env,
+    run_device_connect,
+)
 from reachy_mini_driver.settings_ui import SETTINGS_PORT, log_settings_page
 
 logger = logging.getLogger(__name__)
@@ -100,14 +106,19 @@ def register_device_connect_settings_routes(settings_app: FastAPI | None) -> Non
 
 def run_device_connect_app(reachy_mini: ReachyMini, stop_event: threading.Event) -> None:
     """Run the Device Connect :class:`~device_connect_edge.DeviceRuntime` until *stop_event*."""
-    _ = reachy_mini
+    configure_driver_logging()
+    logger.info("Device Connect app run() invoked (Reachy Mini connected)")
+    settings_path = default_config_path()
+    logger.info("Loading settings from %s", settings_path)
 
     try:
-        params = merge_app_settings_with_env(load_app_settings())
+        settings = load_app_settings()
+        params = merge_app_settings_with_env(settings)
     except ValueError as exc:
         logger.error("Device Connect configuration error: %s", exc)
         raise
 
+    log_run_config(params)
     asyncio.run(run_device_connect(params, stop_event))
 
 
@@ -122,16 +133,24 @@ class ReachyDeviceConnectApp(ReachyMiniApp):
         register_device_connect_settings_routes(self.settings_app)
 
     def wrapped_run(self, *args: object, **kwargs: object) -> None:
+        configure_driver_logging()
+        self.logger.info("Reachy Mini Device Connect app starting")
         if self.settings_app is not None:
             log_settings_page(self.logger)
         super().wrapped_run(*args, **kwargs)
 
     def run(self, reachy_mini: ReachyMini, stop_event: threading.Event) -> None:
-        run_device_connect_app(reachy_mini, stop_event)
+        self.logger.info("Entering Device Connect driver main loop")
+        try:
+            run_device_connect_app(reachy_mini, stop_event)
+        except Exception:
+            self.logger.exception("Device Connect app stopped due to an error")
+            raise
+        self.logger.info("Device Connect app run() finished")
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
+    configure_driver_logging()
     app = ReachyDeviceConnectApp()
     try:
         app.wrapped_run()

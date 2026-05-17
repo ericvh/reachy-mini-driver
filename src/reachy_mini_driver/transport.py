@@ -4,10 +4,13 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import math
 import urllib.error
 import urllib.request
 from typing import Any, Callable, Protocol, TYPE_CHECKING
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from device_connect_edge.drivers.transport import DriverTransport
@@ -135,8 +138,11 @@ class WebSocketReachyTransport:
                 "Install with: pip install 'reachy-mini-driver[websocket]'"
             ) from exc
 
-        self._ws = await websockets.connect(f"ws://{self.host}:{self.api_port}/ws/sdk")
+        url = f"ws://{self.host}:{self.api_port}/ws/sdk"
+        logger.info("WebSocket transport connecting to %s", url)
+        self._ws = await websockets.connect(url)
         self._read_task = asyncio.create_task(self._read_loop(on_joints, on_imu))
+        logger.info("WebSocket transport connected")
 
     async def _read_loop(
         self,
@@ -205,8 +211,14 @@ class ZenohReachyTransport:
             except (json.JSONDecodeError, UnicodeDecodeError):
                 return
 
+        logger.info(
+            "Zenoh transport subscribing to %s/joint_positions and %s/imu_data",
+            self._prefix,
+            self._prefix,
+        )
         await self._messaging.subscribe(f"{self._prefix}/joint_positions", _on_joints)
         await self._messaging.subscribe(f"{self._prefix}/imu_data", _on_imu)
+        logger.info("Zenoh transport subscriptions active")
 
     async def stop(self) -> None:
         return None
@@ -264,12 +276,23 @@ class ReachyHardwareTransport:
                 use_websocket = not status.get("wireless_version")
 
         if use_websocket:
+            logger.info(
+                "Reachy realtime transport: WebSocket (mode=%s host=%s:%s)",
+                self.mode,
+                self.host,
+                self.api_port,
+            )
             self._realtime = WebSocketReachyTransport(self.host, self.api_port)
         else:
             if self._messaging is None:
                 raise RuntimeError(
                     "Zenoh transport requires an active Device Connect messaging session"
                 )
+            logger.info(
+                "Reachy realtime transport: Zenoh (mode=%s prefix=%s)",
+                self.mode,
+                self.prefix,
+            )
             self._realtime = ZenohReachyTransport(self._messaging, self.prefix)
         return self._realtime
 
@@ -279,6 +302,7 @@ class ReachyHardwareTransport:
         on_imu: Callable[[dict[str, Any]], None],
     ) -> None:
         realtime = await self._ensure_realtime()
+        logger.info("Starting Reachy realtime I/O via %s", type(realtime).__name__)
         await realtime.start(on_joints, on_imu)
 
     async def stop(self) -> None:

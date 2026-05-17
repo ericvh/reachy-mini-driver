@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import logging
 import math
 import struct
 from datetime import UTC, datetime
@@ -18,6 +19,8 @@ from reachy_mini_driver.transport import (
     ReachyTransport,
     rpy_to_pose,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class ReachyMiniDriver(DeviceDriver):
@@ -53,6 +56,7 @@ class ReachyMiniDriver(DeviceDriver):
         self._latest_joints: dict[str, Any] | None = None
         self._latest_imu: dict[str, Any] | None = None
         self._previous_video_frame: bytes | None = None
+        self._logged_first_joints = False
 
     @property
     def identity(self) -> DeviceIdentity:
@@ -73,19 +77,32 @@ class ReachyMiniDriver(DeviceDriver):
         return DeviceStatus(ts=datetime.now(UTC), availability=state)
 
     async def connect(self) -> None:
+        logger.info(
+            "ReachyMiniDriver connecting (host=%s:%s transport_mode=%s)",
+            self.host,
+            self.api_port,
+            self.transport_mode,
+        )
         if isinstance(self.transport_client, ReachyHardwareTransport):
             messaging = self.transport
             if messaging is not None:
+                logger.info("Attaching Device Connect messaging to Reachy transport")
                 self.transport_client.set_messaging(messaging)
         await self.transport_client.start(
             on_joints=self._record_joints,
             on_imu=self._record_imu,
         )
+        logger.info("ReachyMiniDriver connected — realtime state streaming active")
 
     async def disconnect(self) -> None:
+        logger.info("ReachyMiniDriver disconnecting")
         await self.transport_client.stop()
+        logger.info("ReachyMiniDriver disconnected")
 
     def _record_joints(self, payload: dict[str, Any]) -> None:
+        if not self._logged_first_joints:
+            logger.info("Receiving joint state from Reachy")
+            self._logged_first_joints = True
         self._latest_joints = payload
         self.mhp.set_current_pose({"joints": payload})
 

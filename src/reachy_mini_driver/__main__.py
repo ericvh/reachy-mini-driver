@@ -4,14 +4,11 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import logging
 
+from reachy_mini_driver.logging_setup import configure_driver_logging
 from reachy_mini_driver.runtime_launcher import gather_cli_run_params, run_device_connect
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s %(levelname)s %(name)s %(message)s",
-)
+configure_driver_logging()
 
 
 def build_parser() -> argparse.ArgumentParser:

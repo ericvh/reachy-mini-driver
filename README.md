@@ -102,6 +102,8 @@ While the app is running, **settings and validation** are served on **`http://<r
 
 Environment variables documented in `config.py` (for example `NATS_CREDENTIALS_FILE`, `DEVICE_CONNECT_PORTAL`) still layer on top of the JSON file—use env for secrets injected by your process manager.
 
+**Logs:** the driver prints timestamped lines to stderr (config banner, transport connect, joint stream, and a heartbeat every 30s while running). Set `REACHY_MINI_DRIVER_LOG_LEVEL=DEBUG` for more detail from `device_connect_edge`.
+
 To publish your own HF Space repo, build `device-connect-driver/pyproject.toml` with
 `device-connect-driver/sync_driver_dependency.py`, run `reachy-mini-app-assistant check device-connect-driver`, then
 see `device-connect-driver/README.md`.

@@ -24,9 +24,49 @@ from reachy_mini_driver.config import (
 from reachy_mini_driver.device_connect import ReachyMiniDriver
 from reachy_mini_driver.media import NullMediaClient, SimMediaClient
 from reachy_mini_driver.mhp_state import MhpStateStore
+from reachy_mini_driver.logging_setup import configure_driver_logging
 from reachy_mini_driver.transport import SimReachyTransport
 
 logger = logging.getLogger(__name__)
+
+_HEARTBEAT_INTERVAL_S = 30.0
+_HEARTBEAT_POLL_S = 0.12
+
+
+def log_run_config(params: DeviceConnectRunParams) -> None:
+    """Log resolved configuration before starting the runtime."""
+    cfg = params.driver_config
+    creds = cfg.nats_credentials_file or "(none)"
+    urls = ", ".join(cfg.messaging_urls) if cfg.messaging_urls else "(default)"
+    backend = cfg.messaging_backend or "(default)"
+    logger.info("=== Reachy Mini Device Connect driver ===")
+    logger.info(
+        "device_id=%s tenant=%s portal=%s simulate=%s",
+        cfg.device_id or "(unset)",
+        cfg.tenant or "(unset)",
+        cfg.portal,
+        cfg.simulate,
+    )
+    logger.info(
+        "reachy_target=%s:%s transport=%s prefix=%s",
+        cfg.host,
+        cfg.api_port,
+        params.transport_mode_override or cfg.transport_mode,
+        cfg.prefix,
+    )
+    logger.info(
+        "messaging backend=%s urls=%s credentials=%s allow_insecure=%s",
+        backend,
+        urls,
+        creds,
+        cfg.allow_insecure,
+    )
+    if params.no_media:
+        logger.info("media: disabled")
+    elif cfg.simulate:
+        logger.info("media: simulated")
+    else:
+        logger.info("media: SDK (camera/mic when available)")
 
 
 @dataclass(frozen=True)
@@ -177,16 +217,43 @@ def merge_app_settings_with_env(settings: DeviceConnectAppSettings) -> DeviceCon
     )
 
 
-async def _run_until_stopped(runtime: DeviceRuntime, stop_event: threading.Event) -> None:
+async def _run_until_stopped(
+    runtime: DeviceRuntime,
+    stop_event: threading.Event,
+    *,
+    device_id: str,
+    portal: bool,
+    host: str,
+    api_port: int,
+) -> None:
     run_task = asyncio.create_task(runtime.run())
+    logger.info("Device Connect runtime task started (waiting for broker and driver connect)")
+    heartbeat_ticks = max(1, int(_HEARTBEAT_INTERVAL_S / _HEARTBEAT_POLL_S))
+    tick = 0
     try:
         while not stop_event.is_set():
             if run_task.done():
+                exc = run_task.exception()
+                if exc is not None:
+                    logger.error("Device Connect runtime exited with error: %s", exc)
+                else:
+                    logger.warning("Device Connect runtime exited unexpectedly")
                 await run_task
                 return
-            await asyncio.sleep(0.12)
+            tick += 1
+            if tick % heartbeat_ticks == 0:
+                logger.info(
+                    "Device Connect heartbeat: running (device_id=%s portal=%s reachy=%s:%s)",
+                    device_id or "(unset)",
+                    portal,
+                    host,
+                    api_port,
+                )
+            await asyncio.sleep(_HEARTBEAT_POLL_S)
+        logger.info("Stop requested — shutting down Device Connect runtime")
         await runtime.stop()
         await run_task
+        logger.info("Device Connect runtime stopped cleanly")
     except Exception:
         if not run_task.done():
             run_task.cancel()
@@ -199,7 +266,9 @@ async def _run_until_stopped(runtime: DeviceRuntime, stop_event: threading.Event
 
 async def run_device_connect(params: DeviceConnectRunParams, stop_event: threading.Event | None) -> None:
     """Start :class:`ReachyMiniDriver` and block until shutdown."""
+    configure_driver_logging()
     cfg = params.driver_config
+    log_run_config(params)
     if cfg.discovery_mode:
         os.environ.setdefault("DEVICE_CONNECT_DISCOVERY_MODE", cfg.discovery_mode)
 
@@ -232,16 +301,22 @@ async def run_device_connect(params: DeviceConnectRunParams, stop_event: threadi
         allow_insecure=cfg.allow_insecure,
     )
 
-    logger.info(
-        "Device Connect driver starting (device_id=%s tenant=%s target=%s:%s portal=%s)",
-        cfg.device_id,
-        cfg.tenant,
-        cfg.host,
-        cfg.api_port,
-        cfg.portal,
-    )
+    logger.info("Starting DeviceRuntime (connecting to messaging and Reachy hardware)")
 
     if stop_event is None:
-        await runtime.run()
+        logger.info("Device Connect runtime active — press Ctrl+C to stop")
+        try:
+            await runtime.run()
+        except Exception:
+            logger.exception("Device Connect runtime failed")
+            raise
+        logger.info("Device Connect runtime finished")
     else:
-        await _run_until_stopped(runtime, stop_event)
+        await _run_until_stopped(
+            runtime,
+            stop_event,
+            device_id=cfg.device_id,
+            portal=cfg.portal,
+            host=cfg.host,
+            api_port=cfg.api_port,
+        )
