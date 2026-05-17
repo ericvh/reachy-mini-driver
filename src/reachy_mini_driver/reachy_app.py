@@ -24,11 +24,11 @@ from reachy_mini_driver.app_settings import (
 )
 from reachy_mini_driver.config import PortalCredentials, load_portal_credentials
 from reachy_mini_driver.runtime_launcher import merge_app_settings_with_env, run_device_connect
+from reachy_mini_driver.settings_ui import SETTINGS_PORT, log_settings_page
 
 logger = logging.getLogger(__name__)
 
 SETTINGS_HOST = "0.0.0.0"
-SETTINGS_PORT = 8842
 
 
 def register_device_connect_settings_routes(settings_app: FastAPI | None) -> None:
@@ -120,6 +120,11 @@ class ReachyDeviceConnectApp(ReachyMiniApp):
     def __init__(self, running_on_wireless: bool = False) -> None:
         super().__init__(running_on_wireless)
         register_device_connect_settings_routes(self.settings_app)
+
+    def wrapped_run(self, *args: object, **kwargs: object) -> None:
+        if self.settings_app is not None:
+            log_settings_page(self.logger)
+        super().wrapped_run(*args, **kwargs)
 
     def run(self, reachy_mini: ReachyMini, stop_event: threading.Event) -> None:
         run_device_connect_app(reachy_mini, stop_event)
