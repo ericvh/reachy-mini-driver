@@ -5,7 +5,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 python -m pip install --upgrade pip
-pip install -e ".[dev,media,app]"
+pip install -e ".[ci]"
 
 echo "=== unittest discover ==="
 python -m unittest discover -s tests -v

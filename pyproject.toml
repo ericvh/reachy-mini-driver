@@ -17,6 +17,13 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# Hardware-free CI: simulated transport/media tests only (no reachy-mini / PyGObject).
+ci = [
+  "numpy>=1.26.0",
+  "Pillow>=10.0.0",
+  "fastapi>=0.100",
+  "python-multipart>=0.0.9",
+]
 dev = [
   "ruff",
 ]
