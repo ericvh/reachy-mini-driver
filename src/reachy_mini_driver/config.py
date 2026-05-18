@@ -38,7 +38,6 @@ class DriverConfig:
     messaging_urls: tuple[str, ...] = ()
     nats_credentials_file: str | None = None
     allow_insecure: bool = False
-    mhp_rig: str = "reachy_mini"
     portal: bool = False
     portal_credentials_glob: str = DEFAULT_PORTAL_CREDENTIALS_GLOB
     portal_credentials_dir: str = str(DEFAULT_PORTAL_CREDENTIALS_DIR)
@@ -76,7 +75,6 @@ class DriverConfig:
                 or None
             ),
             allow_insecure=allow_insecure in {"1", "true", "yes"},
-            mhp_rig=os.environ.get("MHP_RIG", "reachy_mini"),
             portal=_truthy(os.environ.get("DEVICE_CONNECT_PORTAL", os.environ.get("REACHY_PORTAL", ""))),
             portal_credentials_glob=os.environ.get(
                 "PORTAL_CREDENTIALS_GLOB",
@@ -207,7 +205,6 @@ def apply_portal_config(
         messaging_urls=messaging_urls,
         nats_credentials_file=config.nats_credentials_file,
         allow_insecure=config.allow_insecure,
-        mhp_rig=config.mhp_rig,
         portal=config.portal,
         portal_credentials_glob=config.portal_credentials_glob,
         portal_credentials_dir=config.portal_credentials_dir,

@@ -84,10 +84,8 @@
       <label for="portal_credentials_glob">Portal credentials glob</label>
       <input type="text" id="portal_credentials_glob" />
 
-      <div class="row">
-        <label>MHP rig<input type="text" id="mhp_rig" /></label>
-        <label>NATS subject prefix<input type="text" id="reachy_prefix" /></label>
-      </div>
+      <label for="reachy_prefix">NATS subject prefix</label>
+      <input type="text" id="reachy_prefix" />
     </details>
 
     <button type="submit">Save</button>
@@ -100,7 +98,7 @@
   <script>
     const fields = ["use_portal","nats_credentials_file","device_id","tenant","reachy_target","transport_mode",
       "allow_insecure","simulate","no_media","messaging_backend","messaging_urls","discovery_mode",
-      "portal_credentials_dir","portal_credentials_glob","mhp_rig","reachy_prefix"];
+      "portal_credentials_dir","portal_credentials_glob","reachy_prefix"];
 
     function setStatus(msg, ok) {
       const el = document.getElementById("status");

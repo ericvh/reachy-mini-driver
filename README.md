@@ -1,6 +1,6 @@
-# Reachy Mini Device Connect/MHP Driver
+# Reachy Mini Device Connect Driver
 
-Standalone Reachy Mini driver for Device Connect and MHP.
+Standalone Reachy Mini driver for Device Connect.
 
 The target shape is:
 
@@ -12,8 +12,8 @@ Reachy Mini SDK / daemon
   -> Codex, Claude, or another supervised agent
 ```
 
-MHP is used as the local robot-state contract for command ownership, leases,
-interlocks, target state, observed state, execution status, and last error. This
+The driver keeps an in-process state mirror for command ownership, leases,
+interlocks, target pose, observed state, execution status, and errors. This
 package targets the current `device_connect_edge` API directly and does not
 depend on Strands Robots (see [Acknowledgments](#acknowledgments)).
 
@@ -22,7 +22,7 @@ depend on Strands Robots (see [Acknowledgments](#acknowledgments)).
 - `src/reachy_mini_driver/device_connect.py` - Device Connect `DeviceDriver`.
 - `src/reachy_mini_driver/media.py` - optional SDK-backed audio/video I/O boundary.
 - `src/reachy_mini_driver/transport.py` - Reachy daemon/SDK transport boundary.
-- `src/reachy_mini_driver/mhp_state.py` - MHP state contract shim.
+- `src/reachy_mini_driver/driver_state.py` - in-process driver state tracking.
 - `src/reachy_mini_driver/config.py` - Environment-driven runtime config.
 - `src/reachy_mini_driver/__main__.py` - CLI runner.
 - `src/reachy_mini_driver/reachy_app.py` - ReachyMiniApp (HF app store / dashboard entry).

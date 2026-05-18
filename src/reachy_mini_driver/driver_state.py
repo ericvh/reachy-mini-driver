@@ -1,11 +1,4 @@
-"""MHP-facing state contract for Reachy Mini.
-
-This module intentionally keeps the first implementation small. It provides an
-in-process state mirror with the same fields that should later be backed by
-`modelhardwareprotocol` slots. The Device Connect driver can be brought up and
-tested against mocked hardware first, then this shim can be replaced with a real
-MHP manifest and shared-memory dictionary.
-"""
+"""In-process driver state for Reachy Mini."""
 
 from __future__ import annotations
 
@@ -16,7 +9,7 @@ from typing import Any
 
 @dataclass
 class ReachyState:
-    """Minimal physical-state surface exposed by the driver."""
+    """Physical-state surface exposed by the driver."""
 
     command_owner: str | None = None
     lease_expires_at: float = 0.0
@@ -38,8 +31,8 @@ class ReachyState:
         return self.lease_expires_at > time.time()
 
 
-class MhpStateStore:
-    """Small replaceable facade for the future MHP slot implementation."""
+class DriverStateStore:
+    """Tracks command ownership, leases, media, and motion state for the driver."""
 
     def __init__(self, rig_name: str = "reachy_mini"):
         self.rig_name = rig_name

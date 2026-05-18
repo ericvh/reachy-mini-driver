@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "reachy-mini-driver"
 version = "0.1.0"
-description = "Standalone Reachy Mini Device Connect/MHP driver"
+description = "Standalone Reachy Mini Device Connect driver"
 readme = "README.md"
 # reachy-mini 1.7.x needs libusb_package>=1.0.26.3, which ships wheels for
 # cp310–cp313 only (no cp314 wheel or sdist on PyPI as of 2026-05).

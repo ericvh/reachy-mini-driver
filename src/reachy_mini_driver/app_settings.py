@@ -62,7 +62,6 @@ class DeviceConnectAppSettings(BaseModel):
     )
     portal_credentials_glob: str = Field(default="")
     portal_credentials_dir: str = Field(default="")
-    mhp_rig: str = Field(default="reachy_mini")
     reachy_prefix: str = Field(default="reachy_mini")
 
 

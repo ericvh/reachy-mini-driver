@@ -76,7 +76,7 @@ class ReachyMiniDriverTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result["status"], "accepted")
         self.assertTrue(transport.commands)
         self.assertIn("head_pose", transport.commands[-1])
-        self.assertEqual(driver.mhp.snapshot()["command_owner"], "test")
+        self.assertEqual(driver.driver_state.snapshot()["command_owner"], "test")
 
     async def test_look_at_world_rejects_out_of_range_command(self):
         transport = NullReachyTransport()
@@ -105,13 +105,13 @@ class ReachyMiniDriverTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result["status"], "accepted")
         self.assertEqual(transport.api_calls[-1], ("/api/move/play/wake_up", "POST", None))
 
-    async def test_media_status_updates_mhp_state(self):
+    async def test_media_status_updates_driver_state(self):
         driver = ReachyMiniDriver(transport=NullReachyTransport(), media=FakeMediaClient())
 
         result = await driver.get_media_status()
 
         self.assertEqual(result["status"], "available")
-        snapshot = driver.mhp.snapshot()
+        snapshot = driver.driver_state.snapshot()
         self.assertTrue(snapshot["media_ready"])
         self.assertEqual(snapshot["video_input_state"], "available")
 
@@ -161,7 +161,7 @@ class ReachyMiniDriverTests(unittest.IsolatedAsyncioTestCase):
         imu = await driver.get_imu()
 
         self.assertEqual(status["daemon"]["target"], "simulated")
-        self.assertEqual(status["mhp"]["command_owner"], "sim-test")
+        self.assertEqual(status["driver_state"]["command_owner"], "sim-test")
         self.assertEqual(joints["antenna_degrees"], [10.0, -10.0])
         self.assertTrue(imu["imu"]["simulated"])
 
@@ -203,7 +203,7 @@ class ReachyMiniDriverTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result["event"]["kind"], "audio_activity_detected")
         self.assertEqual(events[-1][0], "audio_event")
         self.assertEqual(events[-1][1]["state"], "active")
-        self.assertTrue(driver.mhp.snapshot()["audio_activity"])
+        self.assertTrue(driver.driver_state.snapshot()["audio_activity"])
 
     async def test_detect_motion_emits_event_after_baseline_frame(self):
         events = []
@@ -216,7 +216,7 @@ class ReachyMiniDriverTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(baseline["event"]["kind"], "motion_ended")
         self.assertEqual(detected["event"]["kind"], "motion_detected")
         self.assertEqual(events[-1][0], "motion_event")
-        self.assertEqual(driver.mhp.snapshot()["video_motion_state"], "active")
+        self.assertEqual(driver.driver_state.snapshot()["video_motion_state"], "active")
 
     def test_parse_reachy_target_supports_sim_and_host_port(self):
         self.assertEqual(parse_reachy_target("sim"), ("simulated-reachy-mini", 8000, True))

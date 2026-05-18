@@ -1,4 +1,4 @@
-"""CLI runner for the Reachy Mini Device Connect/MHP driver."""
+"""CLI runner for the Reachy Mini Device Connect driver."""
 
 from __future__ import annotations
 
@@ -60,7 +60,6 @@ def build_parser() -> argparse.ArgumentParser:
         help="Reachy real-time transport: auto (default), websocket, zenoh, or http.",
     )
     parser.add_argument("--allow-insecure", action="store_true")
-    parser.add_argument("--mhp-rig", default=None)
     parser.add_argument("--no-media", action="store_true")
     return parser
 

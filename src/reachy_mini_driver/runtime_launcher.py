@@ -23,7 +23,7 @@ from reachy_mini_driver.config import (
 )
 from reachy_mini_driver.device_connect import ReachyMiniDriver
 from reachy_mini_driver.media import NullMediaClient, SimMediaClient
-from reachy_mini_driver.mhp_state import MhpStateStore
+from reachy_mini_driver.driver_state import DriverStateStore
 from reachy_mini_driver.logging_setup import configure_driver_logging
 from reachy_mini_driver.transport import SimReachyTransport
 
@@ -126,7 +126,6 @@ def gather_cli_run_params(args: Namespace) -> DeviceConnectRunParams:
         messaging_urls=messaging_urls,
         nats_credentials_file=credentials_file,
         allow_insecure=allow_insecure,
-        mhp_rig=args.mhp_rig or env.mhp_rig,
         portal=portal,
         portal_credentials_glob=args.portal_credentials_glob or env.portal_credentials_glob,
         portal_credentials_dir=args.portal_credentials_dir or env.portal_credentials_dir,
@@ -195,7 +194,6 @@ def merge_app_settings_with_env(settings: DeviceConnectAppSettings) -> DeviceCon
         messaging_urls=messaging_urls,
         nats_credentials_file=credentials_file,
         allow_insecure=settings.allow_insecure or env.allow_insecure,
-        mhp_rig=settings.mhp_rig.strip() or env.mhp_rig,
         portal=portal,
         portal_credentials_glob=settings.portal_credentials_glob.strip()
         or env.portal_credentials_glob,
@@ -289,7 +287,7 @@ async def run_device_connect(params: DeviceConnectRunParams, stop_event: threadi
         transport_mode=tm,
         prefix=cfg.prefix,
         media=media,
-        mhp_state=MhpStateStore(cfg.mhp_rig),
+        driver_state=DriverStateStore(),
     )
     runtime = DeviceRuntime(
         driver=driver,

@@ -13,7 +13,7 @@ from device_connect_edge.drivers import DeviceDriver, emit, rpc
 from device_connect_edge.types import DeviceIdentity, DeviceStatus
 
 from reachy_mini_driver.media import MediaClient, SdkMediaClient
-from reachy_mini_driver.mhp_state import MhpStateStore
+from reachy_mini_driver.driver_state import DriverStateStore
 from reachy_mini_driver.transport import (
     ReachyHardwareTransport,
     ReachyTransport,
@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 
 class ReachyMiniDriver(DeviceDriver):
-    """Standalone Device Connect/MHP driver for Reachy Mini."""
+    """Standalone Device Connect driver for Reachy Mini."""
 
     device_type = "reachy_mini"
 
@@ -37,7 +37,7 @@ class ReachyMiniDriver(DeviceDriver):
         transport_mode: str = "auto",
         prefix: str = "reachy_mini",
         media: MediaClient | None = None,
-        mhp_state: MhpStateStore | None = None,
+        driver_state: DriverStateStore | None = None,
     ):
         super().__init__()
         self.host = host
@@ -52,7 +52,7 @@ class ReachyMiniDriver(DeviceDriver):
             prefix=prefix,
         )
         self.media = media or SdkMediaClient(host=host)
-        self.mhp = mhp_state or MhpStateStore()
+        self.driver_state = driver_state or DriverStateStore()
         self._latest_joints: dict[str, Any] | None = None
         self._latest_imu: dict[str, Any] | None = None
         self._previous_video_frame: bytes | None = None
@@ -64,15 +64,15 @@ class ReachyMiniDriver(DeviceDriver):
             device_type=self.device_type,
             manufacturer="Pollen Robotics",
             model="Reachy Mini",
-            description="Standalone Reachy Mini Device Connect/MHP driver",
+            description="Standalone Reachy Mini Device Connect driver",
         )
 
     @property
     def status(self) -> DeviceStatus:
         state = "idle"
-        if self.mhp.state.execution_state not in {"idle", "error"}:
+        if self.driver_state.state.execution_state not in {"idle", "error"}:
             state = "busy"
-        if self.mhp.state.execution_state == "error":
+        if self.driver_state.state.execution_state == "error":
             state = "error"
         return DeviceStatus(ts=datetime.now(UTC), availability=state)
 
@@ -104,16 +104,16 @@ class ReachyMiniDriver(DeviceDriver):
             logger.info("Receiving joint state from Reachy")
             self._logged_first_joints = True
         self._latest_joints = payload
-        self.mhp.set_current_pose({"joints": payload})
+        self.driver_state.set_current_pose({"joints": payload})
 
     def _record_imu(self, payload: dict[str, Any]) -> None:
         self._latest_imu = payload
 
     @rpc()
     async def get_status(self) -> dict[str, Any]:
-        """Return daemon and MHP state for the robot."""
+        """Return daemon and driver state for the robot."""
         daemon = await self.transport_client.api("/api/daemon/status")
-        return {"daemon": daemon, "mhp": self.mhp.snapshot()}
+        return {"daemon": daemon, "driver_state": self.driver_state.snapshot()}
 
     @rpc()
     async def get_joints(self) -> dict[str, Any]:
@@ -140,7 +140,7 @@ class ReachyMiniDriver(DeviceDriver):
         """Return audio and video input/output readiness."""
         try:
             status = self.media.status()
-            self.mhp.set_media_state(
+            self.driver_state.set_media_state(
                 video_input="available" if status.get("video_input") else "unavailable",
                 audio_input="available" if status.get("audio_input") else "unavailable",
                 audio_output="available" if status.get("audio_output") else "unavailable",
@@ -148,7 +148,7 @@ class ReachyMiniDriver(DeviceDriver):
             )
             return status
         except Exception as exc:
-            self.mhp.set_error(str(exc))
+            self.driver_state.set_error(str(exc))
             return {"status": "error", "reason": str(exc)}
 
     @rpc()
@@ -223,10 +223,10 @@ class ReachyMiniDriver(DeviceDriver):
             return {"status": "error", "reason": "only raw frame encoding is implemented"}
         try:
             result = self.media.get_video_frame(encoding=encoding)
-            self.mhp.set_media_state(video_input=result.get("status", "unknown"))
+            self.driver_state.set_media_state(video_input=result.get("status", "unknown"))
             return result
         except Exception as exc:
-            self.mhp.set_error(str(exc))
+            self.driver_state.set_error(str(exc))
             return {"status": "error", "reason": str(exc)}
 
     @rpc()
@@ -255,10 +255,10 @@ class ReachyMiniDriver(DeviceDriver):
             return {"status": "error", "reason": "channels outside supported range [1, 4]"}
         try:
             result = self.media.push_video_frame(data_b64, width, height, channels, dtype)
-            self.mhp.set_media_state(video_input=result.get("status", "unknown"))
+            self.driver_state.set_media_state(video_input=result.get("status", "unknown"))
             return result
         except Exception as exc:
-            self.mhp.set_error(str(exc))
+            self.driver_state.set_error(str(exc))
             return {"status": "error", "reason": str(exc)}
 
     @rpc()
@@ -266,10 +266,10 @@ class ReachyMiniDriver(DeviceDriver):
         """Start microphone capture."""
         try:
             result = self.media.start_audio_input()
-            self.mhp.set_media_state(audio_input=result.get("status", "unknown"))
+            self.driver_state.set_media_state(audio_input=result.get("status", "unknown"))
             return result
         except Exception as exc:
-            self.mhp.set_error(str(exc))
+            self.driver_state.set_error(str(exc))
             return {"status": "error", "reason": str(exc)}
 
     @rpc()
@@ -277,10 +277,10 @@ class ReachyMiniDriver(DeviceDriver):
         """Stop microphone capture."""
         try:
             result = self.media.stop_audio_input()
-            self.mhp.set_media_state(audio_input=result.get("status", "unknown"))
+            self.driver_state.set_media_state(audio_input=result.get("status", "unknown"))
             return result
         except Exception as exc:
-            self.mhp.set_error(str(exc))
+            self.driver_state.set_error(str(exc))
             return {"status": "error", "reason": str(exc)}
 
     @rpc()
@@ -294,10 +294,10 @@ class ReachyMiniDriver(DeviceDriver):
             return {"status": "error", "reason": "only float32 audio encoding is implemented"}
         try:
             result = self.media.get_audio_sample(encoding=encoding)
-            self.mhp.set_media_state(audio_input=result.get("status", "unknown"))
+            self.driver_state.set_media_state(audio_input=result.get("status", "unknown"))
             return result
         except Exception as exc:
-            self.mhp.set_error(str(exc))
+            self.driver_state.set_error(str(exc))
             return {"status": "error", "reason": str(exc)}
 
     @rpc()
@@ -305,10 +305,10 @@ class ReachyMiniDriver(DeviceDriver):
         """Start speaker output."""
         try:
             result = self.media.start_audio_output()
-            self.mhp.set_media_state(audio_output=result.get("status", "unknown"))
+            self.driver_state.set_media_state(audio_output=result.get("status", "unknown"))
             return result
         except Exception as exc:
-            self.mhp.set_error(str(exc))
+            self.driver_state.set_error(str(exc))
             return {"status": "error", "reason": str(exc)}
 
     @rpc()
@@ -316,10 +316,10 @@ class ReachyMiniDriver(DeviceDriver):
         """Stop speaker output."""
         try:
             result = self.media.stop_audio_output()
-            self.mhp.set_media_state(audio_output=result.get("status", "unknown"))
+            self.driver_state.set_media_state(audio_output=result.get("status", "unknown"))
             return result
         except Exception as exc:
-            self.mhp.set_error(str(exc))
+            self.driver_state.set_error(str(exc))
             return {"status": "error", "reason": str(exc)}
 
     @rpc()
@@ -331,10 +331,10 @@ class ReachyMiniDriver(DeviceDriver):
         """
         try:
             result = self.media.play_audio_file(sound_file)
-            self.mhp.set_media_state(audio_output=result.get("status", "unknown"))
+            self.driver_state.set_media_state(audio_output=result.get("status", "unknown"))
             return result
         except Exception as exc:
-            self.mhp.set_error(str(exc))
+            self.driver_state.set_error(str(exc))
             return {"status": "error", "reason": str(exc)}
 
     @rpc()
@@ -362,10 +362,10 @@ class ReachyMiniDriver(DeviceDriver):
             return {"status": "error", "reason": "channels outside supported range [1, 8]"}
         try:
             result = self.media.push_audio_sample(data_b64, sample_rate, channels, dtype)
-            self.mhp.set_media_state(audio_output=result.get("status", "unknown"))
+            self.driver_state.set_media_state(audio_output=result.get("status", "unknown"))
             return result
         except Exception as exc:
-            self.mhp.set_error(str(exc))
+            self.driver_state.set_error(str(exc))
             return {"status": "error", "reason": str(exc)}
 
     @rpc()
@@ -388,7 +388,7 @@ class ReachyMiniDriver(DeviceDriver):
             x_mm: X offset in millimeters, limited to [-50, 50].
             y_mm: Y offset in millimeters, limited to [-50, 50].
             z_mm: Z offset in millimeters, limited to [-50, 50].
-            owner: Logical command owner for the MHP lease.
+            owner: Logical command owner for the motion lease.
         """
         self._assert_range("pitch", pitch, -30, 30)
         self._assert_range("roll", roll, -30, 30)
@@ -396,7 +396,7 @@ class ReachyMiniDriver(DeviceDriver):
         self._assert_range("x_mm", x_mm, -50, 50)
         self._assert_range("y_mm", y_mm, -50, 50)
         self._assert_range("z_mm", z_mm, -50, 50)
-        self.mhp.assert_motion_allowed()
+        self.driver_state.assert_motion_allowed()
 
         pose = rpy_to_pose(pitch, roll, yaw, x_mm, y_mm, z_mm)
         target = {
@@ -408,7 +408,7 @@ class ReachyMiniDriver(DeviceDriver):
             "y_mm": y_mm,
             "z_mm": z_mm,
         }
-        self.mhp.set_target(owner, target)
+        self.driver_state.set_target(owner, target)
         await self.transport_client.send_command({"head_pose": pose})
         return {"status": "accepted", "target": target}
 
@@ -424,13 +424,13 @@ class ReachyMiniDriver(DeviceDriver):
         Args:
             left: Left antenna angle in degrees, limited to [-80, 80].
             right: Right antenna angle in degrees, limited to [-80, 80].
-            owner: Logical command owner for the MHP lease.
+            owner: Logical command owner for the motion lease.
         """
         self._assert_range("left", left, -80, 80)
         self._assert_range("right", right, -80, 80)
-        self.mhp.assert_motion_allowed()
+        self.driver_state.assert_motion_allowed()
         target = {"kind": "antenna_pose", "left": left, "right": right}
-        self.mhp.set_target(owner, target)
+        self.driver_state.set_target(owner, target)
         await self.transport_client.send_command(
             {"antennas_joint_positions": [math.radians(left), math.radians(right)]}
         )
@@ -439,23 +439,23 @@ class ReachyMiniDriver(DeviceDriver):
     @rpc()
     async def goto_sleep(self, owner: str = "agent") -> dict[str, Any]:
         """Put the robot into its sleep posture."""
-        self.mhp.assert_motion_allowed()
-        self.mhp.set_target(owner, {"kind": "goto_sleep"})
+        self.driver_state.assert_motion_allowed()
+        self.driver_state.set_target(owner, {"kind": "goto_sleep"})
         result = await self.transport_client.api("/api/move/play/goto_sleep", "POST")
         return {"status": "accepted", "result": result}
 
     @rpc()
     async def wake_up(self, owner: str = "agent") -> dict[str, Any]:
         """Wake the robot from its sleep posture."""
-        self.mhp.assert_motion_allowed()
-        self.mhp.set_target(owner, {"kind": "wake_up"})
+        self.driver_state.assert_motion_allowed()
+        self.driver_state.set_target(owner, {"kind": "wake_up"})
         result = await self.transport_client.api("/api/move/play/wake_up", "POST")
         return {"status": "accepted", "result": result}
 
     @rpc()
     async def stop_motion(self, owner: str = "agent") -> dict[str, Any]:
         """Stop current robot motion."""
-        self.mhp.set_target(owner, {"kind": "stop_motion"})
+        self.driver_state.set_target(owner, {"kind": "stop_motion"})
         result = await self.transport_client.api("/api/move/stop", "POST")
         return {"status": "accepted", "result": result}
 
@@ -497,7 +497,7 @@ class ReachyMiniDriver(DeviceDriver):
             raise ValueError(f"{name}={value} outside safe range [{minimum}, {maximum}]")
 
     async def _record_and_emit_audio_event(self, payload: dict[str, Any]) -> None:
-        self.mhp.set_audio_event(payload)
+        self.driver_state.set_audio_event(payload)
         try:
             await self.audio_event(**payload)
         except RuntimeError as exc:
@@ -505,7 +505,7 @@ class ReachyMiniDriver(DeviceDriver):
                 raise
 
     async def _record_and_emit_motion_event(self, payload: dict[str, Any]) -> None:
-        self.mhp.set_motion_event(payload)
+        self.driver_state.set_motion_event(payload)
         try:
             await self.motion_event(**payload)
         except RuntimeError as exc:
