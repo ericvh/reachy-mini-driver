@@ -33,7 +33,7 @@ depend on Strands Robots (see [Acknowledgments](#acknowledgments)).
 - `examples/claude_desktop_config.json` - MCP bridge config shape.
 - `tests/` - hardware-free unit tests.
 
-Python **3.11–3.12** are recommended (**3.13** often works; **3.14** is unsupported for SDK media deps). Use **`pip install -e ".[media]"`** when you need camera/mic Device Connect functions.
+Python **3.11–3.12** are recommended (**3.13** often works; **3.14** is unsupported for SDK media deps). Use `**pip install -e ".[media]"`** when you need camera/mic Device Connect functions.
 
 ## Bring-Up
 
@@ -92,13 +92,13 @@ pip install -e ".[app,media]"
 - **Entry point** (shown in the app list): `reachy_mini_device_connect` (`pyproject.toml` → `[project.entry-points."reachy_mini_apps"]`).
 - **Process entry**: `python -m reachy_mini_driver.reachy_app` — the Reachy launcher runs this for installed apps.
 
-While the app is running, **settings and validation** are served on **`http://<robot-ip>:8842`** (`GET/PUT /api/settings`, `POST /api/validate`). The bundled page edits the same JSON as:
+While the app is running, **settings and validation** are served on `**http://<robot-ip>:8842`** (`GET/PUT /api/settings`, `POST /api/validate`). The bundled page edits the same JSON as:
 
 ```text
 ~/.config/reachy_mini_driver/device_connect_app.json
 ```
 
-**Typical robot setup:** open the settings page (`http://<robot-ip>:8842`), enable portal mode, upload **`.json`** or **`.creds`** (or set **`nats_credentials_file`**), then set **`reachy_target`** `127.0.0.1:8000` and **`transport_mode`** `websocket`. Portal mode is **off** by default so the app can start before credentials exist.
+**Typical robot setup:** open the settings page (`http://<robot-ip>:8842`), enable portal mode, upload `**.json`** or `**.creds**` (or set `**nats_credentials_file**`), then set `**reachy_target**` `127.0.0.1:8000` and `**transport_mode**` `websocket`. Portal mode is **off** by default so the app can start before credentials exist.
 
 Environment variables documented in `config.py` (for example `NATS_CREDENTIALS_FILE`, `DEVICE_CONNECT_PORTAL`) still layer on top of the JSON file—use env for secrets injected by your process manager.
 
@@ -148,6 +148,54 @@ RMS, threshold, activity state, and confidence. `detect_motion` samples video
 input and emits `motion_event` with a frame-delta magnitude, threshold, state,
 and confidence. These events carry evidence, not ASR transcripts or semantic
 vision labels.
+
+## Video over Device Connect
+
+Device Connect RPC replies travel over **NATS**, which enforces a small maximum
+message size (often about **1 MiB** on portal brokers). A single **raw** camera
+frame (RGB + base64 + JSON) can exceed that and stall or reset the connection.
+
+### Current behavior (`capture_video_frame`)
+
+| `encoding` | Use |
+|------------|-----|
+| **`jpeg`** (default) | Resize (longest side ≤ 640 px) + JPEG (~82 quality). Safe for portal/MCP. |
+| **`thumbnail`** | Smaller preset (≤ 320 px, slightly lower quality). |
+| **`raw`** | Full numpy buffer in the RPC body. **Local/dev only**; rejected when the encoded JSON would exceed ~900 KiB unless you explicitly need raw and accept `nats_payload_warning`. |
+
+Optional parameters: `max_edge`, `quality` (JPEG 1–95).
+
+`detect_motion` still processes **full frames on the robot** and only returns a
+small JSON result over NATS (no full image in the RPC).
+
+Requires the **`[media]`** extra (`Pillow` is used for JPEG). Install with:
+
+```bash
+pip install -e ".[app,media]"
+```
+
+### Side channels for full-resolution or streaming (documented, not implemented)
+
+When an agent needs **full resolution** or **live video**, use a **data plane**
+other than NATS RPC:
+
+- **HTTP(S) on the robot** — e.g. snapshot URL on the Reachy daemon; RPC returns
+  a link or token; the client fetches on LAN/VPN.
+- **WebRTC** — low-latency streaming; heavier (signaling, TURN, firewall rules).
+- **Object storage** — upload JPEG/H.264 to S3/GCS; RPC returns `https://…` (good
+  for async pipelines, not tight interactive loops).
+
+On-robot deployments, realtime state already uses **WebSocket/Zenoh** to the
+daemon (`transport_mode=websocket` on the robot). Device Connect remains the
+**control plane**; bulk video should not share the same NATS subjects as RPC.
+
+### Future work / anti-patterns
+
+Do **not** rely on these for portal use until explicitly designed:
+
+- Default **raw** `data_b64` in every `capture_video_frame` call over the portal.
+- **Chunked NATS** frame reassembly (complex; prefer JPEG RPC + HTTP side channel).
+- **WebRTC inside every RPC** for a single snapshot (overkill vs JPEG thumbnail).
 
 ## Target Modes
 
@@ -263,10 +311,9 @@ docker compose -f docker-compose-itest.yml down -v --remove-orphans
 
 ## Acknowledgments
 
-**Waheed Brown** ([`armwaheed/robots`](https://github.com/armwaheed/robots)) — Reachy Mini Device Connect work in
-[`strands_robots/device_connect`](https://github.com/armwaheed/robots/tree/reachy-mini/strands_robots/device_connect)
+**Waheed Brown** (`[armwaheed/robots](https://github.com/armwaheed/robots)`) — Reachy Mini Device Connect work in
+`[strands_robots/device_connect](https://github.com/armwaheed/robots/tree/reachy-mini/strands_robots/device_connect)`
 (`reachy_mini_driver.py`, `reachy_transport.py`, and related deployment notes) was valuable prior art for
 Reachy transport selection (HTTP, WebSocket, Zenoh), real-time I/O topic layout, and motion/status RPC
 boundaries. This driver is a standalone implementation on `device_connect_edge` and is not part of or
 dependent on Strands Robots; we are grateful for that earlier exploration.
-

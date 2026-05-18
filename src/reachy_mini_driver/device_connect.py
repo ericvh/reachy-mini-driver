@@ -12,6 +12,7 @@ from typing import Any
 from device_connect_edge.drivers import DeviceDriver, emit, rpc
 from device_connect_edge.types import DeviceIdentity, DeviceStatus
 
+from reachy_mini_driver.frame_encoding import encode_from_media_result
 from reachy_mini_driver.media import MediaClient, SdkMediaClient
 from reachy_mini_driver.driver_state import DriverStateStore
 from reachy_mini_driver.transport import (
@@ -213,16 +214,30 @@ class ReachyMiniDriver(DeviceDriver):
         return {"status": "success", "event": payload}
 
     @rpc()
-    async def capture_video_frame(self, encoding: str = "raw") -> dict[str, Any]:
-        """Capture one camera frame.
+    async def capture_video_frame(
+        self,
+        encoding: str = "jpeg",
+        max_edge: int | None = None,
+        quality: int | None = None,
+    ) -> dict[str, Any]:
+        """Capture one camera frame for Device Connect RPC.
 
         Args:
-            encoding: Requested payload encoding. Current supported value is `raw`.
+            encoding: `jpeg` (default), `thumbnail` (smaller JPEG), or `raw` (local/dev only).
+            max_edge: Longest image side in pixels before JPEG encode (preset default per encoding).
+            quality: JPEG quality 1–95 when encoding is `jpeg` or `thumbnail`.
         """
-        if encoding != "raw":
-            return {"status": "error", "reason": "only raw frame encoding is implemented"}
+        normalized = encoding.strip().lower()
+        allow_raw = normalized == "raw"
         try:
-            result = self.media.get_video_frame(encoding=encoding)
+            raw_result = self.media.get_video_frame(encoding="raw")
+            result = encode_from_media_result(
+                raw_result,
+                encoding=normalized,
+                max_edge=max_edge,
+                quality=quality,
+                allow_oversized_raw=allow_raw,
+            )
             self.driver_state.set_media_state(video_input=result.get("status", "unknown"))
             return result
         except Exception as exc:

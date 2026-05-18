@@ -20,11 +20,16 @@ class FakeMediaClient:
         }
 
     def get_video_frame(self, encoding="raw"):
+        import base64
+
+        data = bytes([128, 64, 255, 0] * 4)
         return {
             "status": "success",
             "kind": "video_frame",
             "encoding": encoding,
-            "data_b64": "AA==",
+            "dtype": "uint8",
+            "shape": [4, 4, 1],
+            "data_b64": base64.b64encode(data).decode("ascii"),
         }
 
     def push_video_frame(self, data_b64, width, height, channels=3, dtype="uint8"):
@@ -118,10 +123,11 @@ class ReachyMiniDriverTests(unittest.IsolatedAsyncioTestCase):
     async def test_capture_video_frame_uses_media_client(self):
         driver = ReachyMiniDriver(transport=NullReachyTransport(), media=FakeMediaClient())
 
-        result = await driver.capture_video_frame()
+        result = await driver.capture_video_frame(encoding="jpeg")
 
         self.assertEqual(result["status"], "success")
         self.assertEqual(result["kind"], "video_frame")
+        self.assertEqual(result["format"], "jpeg")
 
     async def test_push_video_frame_uses_media_client(self):
         driver = ReachyMiniDriver(transport=NullReachyTransport(), media=FakeMediaClient())
