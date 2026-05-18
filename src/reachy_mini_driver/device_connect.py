@@ -20,6 +20,7 @@ from reachy_mini_driver.media_streams import (
     release_daemon_media,
 )
 from reachy_mini_driver.driver_state import DriverStateStore
+from reachy_mini_driver.motion_limits import BODY_YAW_MAX_DEG, BODY_YAW_MIN_DEG
 from reachy_mini_driver.transport import (
     ReachyHardwareTransport,
     ReachyTransport,
@@ -129,11 +130,39 @@ class ReachyMiniDriver(DeviceDriver):
             return {"status": "error", "reason": "no joint data"}
         head = self._latest_joints.get("head_joint_positions", [])
         antennas = self._latest_joints.get("antennas_joint_positions", [])
-        return {
+        body = await self.get_body_yaw()
+        payload: dict[str, Any] = {
             "status": "success",
             "head_degrees": [math.degrees(value) for value in head],
             "antenna_degrees": [math.degrees(value) for value in antennas],
         }
+        if body.get("status") == "success":
+            payload["body_yaw_deg"] = body["yaw_deg"]
+            payload["body_yaw_rad"] = body["yaw_rad"]
+        return payload
+
+    @rpc()
+    async def get_body_yaw(self) -> dict[str, Any]:
+        """Return the present body base yaw from the Reachy daemon (radians and degrees)."""
+        try:
+            raw = await self.transport_client.api("/api/state/present_body_yaw", "GET")
+            if isinstance(raw, dict) and raw.get("status") == "error":
+                return raw
+            if isinstance(raw, (int, float)):
+                yaw_rad = float(raw)
+                return {
+                    "status": "success",
+                    "yaw_rad": yaw_rad,
+                    "yaw_deg": math.degrees(yaw_rad),
+                }
+            return {
+                "status": "error",
+                "reason": "unexpected body yaw response",
+                "raw": raw,
+            }
+        except Exception as exc:
+            self.driver_state.set_error(str(exc))
+            return {"status": "error", "reason": str(exc)}
 
     @rpc()
     async def get_imu(self) -> dict[str, Any]:
@@ -487,6 +516,40 @@ class ReachyMiniDriver(DeviceDriver):
         self.driver_state.set_target(owner, target)
         await self.transport_client.send_command({"head_pose": pose})
         return {"status": "accepted", "target": target}
+
+    @rpc()
+    async def set_body_yaw(
+        self,
+        yaw_deg: float,
+        duration_s: float = 0.0,
+        owner: str = "agent",
+    ) -> dict[str, Any]:
+        """Rotate the robot base (body yaw).
+
+        Args:
+            yaw_deg: Target body yaw in degrees, limited to about [-160, 160]
+                (matches Reachy Mini ``yaw_body`` joint limits).
+            duration_s: When > 0, use an interpolated ``/api/move/goto`` move over
+                this many seconds. When 0 (default), send an immediate realtime
+                command (WebSocket ``set_body_yaw`` when available).
+            owner: Logical command owner for the motion lease.
+        """
+        self._assert_range("yaw_deg", yaw_deg, BODY_YAW_MIN_DEG, BODY_YAW_MAX_DEG)
+        self._assert_range("duration_s", duration_s, 0.0, 30.0)
+        self.driver_state.assert_motion_allowed()
+
+        yaw_rad = math.radians(yaw_deg)
+        target = {"kind": "body_yaw", "yaw_deg": yaw_deg, "duration_s": duration_s}
+        self.driver_state.set_target(owner, target)
+
+        send_body_yaw = getattr(self.transport_client, "send_body_yaw", None)
+        if send_body_yaw is not None:
+            transport_result = await send_body_yaw(yaw_rad, duration_s=duration_s)
+        else:
+            await self.transport_client.send_command({"body_yaw": yaw_rad})
+            transport_result = {"status": "accepted", "mode": "realtime"}
+
+        return {"status": "accepted", "target": target, "transport": transport_result}
 
     @rpc()
     async def antenna_pose(

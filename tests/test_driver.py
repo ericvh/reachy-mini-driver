@@ -1,3 +1,4 @@
+import math
 import unittest
 
 from reachy_mini_driver.device_connect import ReachyMiniDriver
@@ -82,6 +83,31 @@ class ReachyMiniDriverTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(transport.commands)
         self.assertIn("head_pose", transport.commands[-1])
         self.assertEqual(driver.driver_state.snapshot()["command_owner"], "test")
+
+    async def test_set_body_yaw_sends_command(self):
+        transport = NullReachyTransport()
+        driver = ReachyMiniDriver(transport=transport)
+
+        result = await driver.set_body_yaw(yaw_deg=30.0, owner="test")
+
+        self.assertEqual(result["status"], "accepted")
+        self.assertAlmostEqual(transport.commands[-1]["body_yaw"], math.radians(30.0))
+
+    async def test_set_body_yaw_rejects_out_of_range(self):
+        driver = ReachyMiniDriver(transport=NullReachyTransport())
+
+        with self.assertRaises(ValueError):
+            await driver.set_body_yaw(yaw_deg=200.0)
+
+    async def test_get_body_yaw_reads_daemon_state(self):
+        transport = SimReachyTransport()
+        driver = ReachyMiniDriver(transport=transport, media=SimMediaClient())
+        await driver.set_body_yaw(yaw_deg=45.0, owner="test")
+
+        result = await driver.get_body_yaw()
+
+        self.assertEqual(result["status"], "success")
+        self.assertAlmostEqual(result["yaw_deg"], 45.0, places=4)
 
     async def test_look_at_world_rejects_out_of_range_command(self):
         transport = NullReachyTransport()

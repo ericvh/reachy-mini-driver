@@ -22,6 +22,12 @@ class TransportTests(unittest.TestCase):
         self.assertEqual(message["type"], "set_target")
         self.assertEqual(len(message["head"]), 16)
 
+    def test_websocket_body_yaw_message_shape(self):
+        command = {"body_yaw": 0.5}
+        message = _WS_CMD_MAP["body_yaw"](command)
+        self.assertEqual(message["type"], "set_body_yaw")
+        self.assertEqual(message["body_yaw"], 0.5)
+
     def test_websocket_antenna_message_shape(self):
         command = {"antennas_joint_positions": [0.1, -0.2]}
         message = _WS_CMD_MAP["antennas_joint_positions"](command)

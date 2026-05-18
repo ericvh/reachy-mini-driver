@@ -316,6 +316,33 @@ class ReachyHardwareTransport:
     async def api(self, path: str, method: str = "GET", data: dict[str, Any] | None = None) -> dict:
         return await self._http.api(path, method, data)
 
+    async def send_body_yaw(self, yaw_rad: float, *, duration_s: float = 0.0) -> dict[str, Any]:
+        """Rotate the body base; uses WebSocket when duration_s is 0, else move/goto."""
+        if duration_s > 0:
+            return await self._http.api(
+                "/api/move/goto",
+                "POST",
+                {
+                    "body_yaw": yaw_rad,
+                    "duration": duration_s,
+                    "interpolation": "minjerk",
+                },
+            )
+        realtime = await self._ensure_realtime()
+        try:
+            await realtime.send_command({"body_yaw": yaw_rad})
+            return {"status": "accepted", "mode": "realtime"}
+        except NotImplementedError:
+            return await self._http.api(
+                "/api/move/goto",
+                "POST",
+                {
+                    "body_yaw": yaw_rad,
+                    "duration": 0.35,
+                    "interpolation": "minjerk",
+                },
+            )
+
 
 class NullReachyTransport:
     """Hardware-free transport for tests and dry runs."""
@@ -342,10 +369,16 @@ class NullReachyTransport:
     async def send_command(self, command: dict[str, Any]) -> None:
         self.commands.append(command)
 
+    async def send_body_yaw(self, yaw_rad: float, *, duration_s: float = 0.0) -> dict[str, Any]:
+        await self.send_command({"body_yaw": yaw_rad})
+        return {"status": "accepted", "mode": "realtime", "duration_s": duration_s}
+
     async def api(self, path: str, method: str = "GET", data: dict[str, Any] | None = None) -> dict:
         self.api_calls.append((path, method, data))
         if path == "/api/daemon/status":
             return {"state": "running", "wireless_version": False}
+        if path == "/api/state/present_body_yaw":
+            return 0.0
         if path == "/api/media/status":
             return {"available": True, "released": False, "no_media": False}
         if path == "/api/media/release" and method == "POST":
@@ -366,6 +399,7 @@ class SimReachyTransport:
         self.sleeping = False
         self.motion_stopped = False
         self.media_released = False
+        self.body_yaw_rad = 0.0
         self._on_joints: Callable[[dict[str, Any]], None] | None = None
         self._on_imu: Callable[[dict[str, Any]], None] | None = None
 
@@ -382,6 +416,16 @@ class SimReachyTransport:
         self._on_joints = None
         self._on_imu = None
 
+    async def send_body_yaw(self, yaw_rad: float, *, duration_s: float = 0.0) -> dict[str, Any]:
+        if duration_s > 0:
+            return await self.api(
+                "/api/move/goto",
+                "POST",
+                {"body_yaw": yaw_rad, "duration": duration_s},
+            )
+        await self.send_command({"body_yaw": yaw_rad})
+        return {"status": "accepted", "mode": "realtime", "target": "simulated"}
+
     async def send_command(self, command: dict[str, Any]) -> None:
         self.commands.append(command)
         self.motion_stopped = False
@@ -389,6 +433,8 @@ class SimReachyTransport:
             self.head_pose = command["head_pose"]
         if "antennas_joint_positions" in command:
             self.antenna_positions = list(command["antennas_joint_positions"])
+        if "body_yaw" in command:
+            self.body_yaw_rad = float(command["body_yaw"])
         self._publish_state()
 
     async def api(self, path: str, method: str = "GET", data: dict[str, Any] | None = None) -> dict:
@@ -427,6 +473,12 @@ class SimReachyTransport:
         if path == "/api/media/acquire" and method == "POST":
             self.media_released = False
             return {"status": "ok", "target": "simulated"}
+        if path == "/api/state/present_body_yaw":
+            return self.body_yaw_rad
+        if path == "/api/move/goto" and method == "POST" and data:
+            if data.get("body_yaw") is not None:
+                self.body_yaw_rad = float(data["body_yaw"])
+            return {"status": "success", "uuid": "simulated-goto", "target": "simulated"}
         return {"status": "success", "path": path, "method": method, "target": "simulated"}
 
     def _publish_state(self) -> None:

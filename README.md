@@ -116,11 +116,16 @@ The current driver exposes:
 - `get_joints`
 - `get_imu`
 - `look_at_world`
+- `get_body_yaw`
+- `set_body_yaw`
 - `antenna_pose`
 - `goto_sleep`
 - `wake_up`
 - `stop_motion`
 - `get_media_status`
+- `get_media_stream_access`
+- `release_media_hardware`
+- `acquire_media_hardware`
 - `detect_audio_activity`
 - `detect_motion`
 - `capture_video_frame`
@@ -142,6 +147,12 @@ The driver also exposes low-level audio and motion events:
 - `audio_event`
 - `motion_event`
 - `safety_event`
+
+`set_body_yaw` rotates the robot base (about ±160°, matching the `yaw_body`
+joint). Use `duration_s=0` for an immediate realtime command (WebSocket when
+available); use `duration_s>0` for an interpolated `/api/move/goto` move.
+`get_body_yaw` reads `/api/state/present_body_yaw`. Combine body yaw with
+`look_at_world` (head yaw ±45°) for wider room scans; see `examples/panorama_scan.py`.
 
 `detect_audio_activity` samples microphone input and emits `audio_event` with
 RMS, threshold, activity state, and confidence. `detect_motion` samples video

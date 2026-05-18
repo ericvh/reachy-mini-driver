@@ -24,6 +24,8 @@ REQUIRED_FUNCTIONS = {
     "get_joints",
     "get_imu",
     "look_at_world",
+    "get_body_yaw",
+    "set_body_yaw",
     "antenna_pose",
     "goto_sleep",
     "wake_up",
