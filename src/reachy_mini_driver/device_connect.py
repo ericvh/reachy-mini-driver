@@ -14,10 +14,16 @@ from device_connect_edge.types import DeviceIdentity, DeviceStatus
 
 from reachy_mini_driver.frame_encoding import encode_from_media_result
 from reachy_mini_driver.media import MediaClient, SdkMediaClient
+from reachy_mini_driver.media_streams import (
+    acquire_daemon_media,
+    build_stream_access_info,
+    release_daemon_media,
+)
 from reachy_mini_driver.driver_state import DriverStateStore
 from reachy_mini_driver.transport import (
     ReachyHardwareTransport,
     ReachyTransport,
+    SimReachyTransport,
     rpy_to_pose,
 )
 
@@ -148,6 +154,61 @@ class ReachyMiniDriver(DeviceDriver):
                 ready=status.get("status") == "available",
             )
             return status
+        except Exception as exc:
+            self.driver_state.set_error(str(exc))
+            return {"status": "error", "reason": str(exc)}
+
+    @rpc()
+    async def get_media_stream_access(self, probe_signaling: bool = False) -> dict[str, Any]:
+        """Return connection metadata for direct video/audio streams (not via NATS).
+
+        Use the returned ``backends`` to open WebRTC, local GStreamer IPC (on-robot),
+        or direct hardware after ``release_media_hardware``. Optional ``probe_signaling``
+        checks whether the daemon WebRTC producer is registered (requires reachy_mini).
+        """
+        try:
+            target = "simulated" if isinstance(self.transport_client, SimReachyTransport) else None
+            return await build_stream_access_info(
+                host=self.host,
+                api_port=self.api_port,
+                api_call=self.transport_client.api,
+                probe_signaling=probe_signaling,
+                target=target,
+            )
+        except Exception as exc:
+            self.driver_state.set_error(str(exc))
+            return {"status": "error", "reason": str(exc)}
+
+    @rpc()
+    async def release_media_hardware(self) -> dict[str, Any]:
+        """Release daemon camera/microphone for direct on-robot access (OpenCV, etc.)."""
+        try:
+            result = await release_daemon_media(self.transport_client.api)
+            if result.get("status") == "success":
+                self.driver_state.set_media_state(
+                    video_input="released",
+                    audio_input="released",
+                    ready=False,
+                )
+            return result
+        except Exception as exc:
+            self.driver_state.set_error(str(exc))
+            return {"status": "error", "reason": str(exc)}
+
+    @rpc()
+    async def acquire_media_hardware(self) -> dict[str, Any]:
+        """Return camera/microphone to the daemon GStreamer/WebRTC pipeline."""
+        try:
+            result = await acquire_daemon_media(self.transport_client.api)
+            if result.get("status") == "success":
+                status = self.media.status()
+                self.driver_state.set_media_state(
+                    video_input="available" if status.get("video_input") else "unavailable",
+                    audio_input="available" if status.get("audio_input") else "unavailable",
+                    audio_output="available" if status.get("audio_output") else "unavailable",
+                    ready=status.get("status") == "available",
+                )
+            return result
         except Exception as exc:
             self.driver_state.set_error(str(exc))
             return {"status": "error", "reason": str(exc)}

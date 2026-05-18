@@ -174,20 +174,35 @@ Requires the **`[media]`** extra (`Pillow` is used for JPEG). Install with:
 pip install -e ".[app,media]"
 ```
 
-### Side channels for full-resolution or streaming (documented, not implemented)
+### Direct stream access (implemented RPCs)
 
-When an agent needs **full resolution** or **live video**, use a **data plane**
-other than NATS RPC:
+When an agent needs **full resolution** or **live** video/audio, call these
+Device Connect functions. They return **metadata only** (URLs, SDK kwargs)—not
+media bytes over NATS.
 
-- **HTTP(S) on the robot** — e.g. snapshot URL on the Reachy daemon; RPC returns
-  a link or token; the client fetches on LAN/VPN.
-- **WebRTC** — low-latency streaming; heavier (signaling, TURN, firewall rules).
-- **Object storage** — upload JPEG/H.264 to S3/GCS; RPC returns `https://…` (good
-  for async pipelines, not tight interactive loops).
+| RPC | Purpose |
+|-----|---------|
+| **`get_media_stream_access`** | Connection hints: WebRTC signaling URL (`ws://<robot>:8443`), local GStreamer IPC (on-robot only), daemon API URL. Optional `probe_signaling=true` checks that the `reachymini` WebRTC producer is up (needs `reachy_mini` installed on the driver host). |
+| **`release_media_hardware`** | `POST /api/media/release` — daemon stops owning camera/mic so on-robot code can use OpenCV / sounddevice directly. |
+| **`acquire_media_hardware`** | `POST /api/media/acquire` — return devices to the daemon pipeline. |
+
+**Remote client (typical portal user):** use the `webrtc` backend from the RPC
+response—connect with `ReachyMini(host=<robot-ip>, media_backend="webrtc")` or
+`GstWebRTCClient` against `ws://<robot-ip>:8443` (producer name `reachymini`).
+Your machine must reach port **8443** on the robot (LAN/VPN/firewall).
+
+**Driver on the robot** (`REACHY_TARGET=127.0.0.1:8000`): prefer `local` when
+`/tmp/reachymini_camera_socket` exists (no WebRTC encode/decode for video).
+
+**Direct hardware on robot:** call `release_media_hardware`, open devices locally,
+then `acquire_media_hardware` when finished.
 
 On-robot deployments, realtime state already uses **WebSocket/Zenoh** to the
 daemon (`transport_mode=websocket` on the robot). Device Connect remains the
 **control plane**; bulk video should not share the same NATS subjects as RPC.
+
+**Not implemented here:** HTTP snapshot URLs, object-store upload links, or TURN
+setup—use WebRTC or JPEG RPC unless you add those side channels yourself.
 
 ### Future work / anti-patterns
 

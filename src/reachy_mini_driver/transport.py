@@ -346,6 +346,12 @@ class NullReachyTransport:
         self.api_calls.append((path, method, data))
         if path == "/api/daemon/status":
             return {"state": "running", "wireless_version": False}
+        if path == "/api/media/status":
+            return {"available": True, "released": False, "no_media": False}
+        if path == "/api/media/release" and method == "POST":
+            return {"status": "ok"}
+        if path == "/api/media/acquire" and method == "POST":
+            return {"status": "ok"}
         return {"status": "success", "path": path, "method": method}
 
 
@@ -359,6 +365,7 @@ class SimReachyTransport:
         self.antenna_positions = [0.0, 0.0]
         self.sleeping = False
         self.motion_stopped = False
+        self.media_released = False
         self._on_joints: Callable[[dict[str, Any]], None] | None = None
         self._on_imu: Callable[[dict[str, Any]], None] | None = None
 
@@ -407,6 +414,19 @@ class SimReachyTransport:
         if path == "/api/move/stop" and method == "POST":
             self.motion_stopped = True
             return {"status": "success", "action": "stop", "target": "simulated"}
+        if path == "/api/media/status":
+            return {
+                "available": not self.media_released,
+                "released": self.media_released,
+                "no_media": False,
+                "target": "simulated",
+            }
+        if path == "/api/media/release" and method == "POST":
+            self.media_released = True
+            return {"status": "ok", "target": "simulated"}
+        if path == "/api/media/acquire" and method == "POST":
+            self.media_released = False
+            return {"status": "ok", "target": "simulated"}
         return {"status": "success", "path": path, "method": method, "target": "simulated"}
 
     def _publish_state(self) -> None:
