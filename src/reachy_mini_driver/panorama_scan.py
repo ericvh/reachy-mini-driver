@@ -1,8 +1,9 @@
 """Panorama-style capture using existing Device Connect driver RPCs.
 
-An agent can orchestrate a room scan with:
+An agent (or ``examples/panorama_scan.py``) orchestrates a room scan over **Device
+Connect** ``invoke_device`` with:
 
-1. ``look_at_world`` — point the head (yaw ±45°, pitch ±30° per driver limits).
+1. ``set_body_yaw`` / ``look_at_world`` — aim base and head.
 2. ``capture_video_frame`` — JPEG still at each pose (NATS-safe over the portal).
 
 Stitching is done locally after download; this module does not send bulk video

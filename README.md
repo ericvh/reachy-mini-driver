@@ -152,7 +152,30 @@ The driver also exposes low-level audio and motion events:
 joint). Use `duration_s=0` for an immediate realtime command (WebSocket when
 available); use `duration_s>0` for an interpolated `/api/move/goto` move.
 `get_body_yaw` reads `/api/state/present_body_yaw`. Combine body yaw with
-`look_at_world` (head yaw ±45°) for wider room scans; see `examples/panorama_scan.py`.
+`look_at_world` (head yaw ±45°) for wider room scans.
+
+### Panorama scan (Device Connect)
+
+`examples/panorama_scan.py` drives the **same RPC path as an agent**: it calls
+`invoke_device` on a registered driver (`--device-id reachy-mini-1`), collects
+JPEG frames, and stitches a horizontal strip locally (off NATS).
+
+```bash
+# Robot: driver on mesh
+DEVICE_CONNECT_ALLOW_INSECURE=true python -m reachy_mini_driver --target 192.168.2.156 --device-id reachy-mini-1
+
+# Laptop: same NATS / portal creds as the driver
+export MESSAGING_URLS=nats://…
+python examples/panorama_scan.py --device-id reachy-mini-1 --output ./panorama-out
+```
+
+Options: `--yaw-steps`, `--body-yaw-steps`, `--max-edge`, `--quality`, `--encoding jpeg|thumbnail`.
+
+**Resolution path:** (1) Today — tune `--max-edge` / `--quality` on
+`capture_video_frame` (stay under NATS limits). (2) Next — call
+`get_media_stream_access`, open WebRTC on the robot for full-rate video while
+Device Connect only moves the head/body. (3) Future — daemon HTTP snapshot URLs
+if added. Direct daemon bypass for dev only: `examples/panorama_scan_direct.py`.
 
 `detect_audio_activity` samples microphone input and emits `audio_event` with
 RMS, threshold, activity state, and confidence. `detect_motion` samples video
