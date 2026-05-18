@@ -95,6 +95,9 @@ class PanoramaDeviceConnectClient:
             },
         )
 
+    async def get_body_yaw(self) -> dict[str, Any]:
+        return await asyncio.to_thread(self._call, "get_body_yaw", None)
+
     async def capture_video_frame(
         self,
         encoding: str | None = None,

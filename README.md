@@ -170,7 +170,16 @@ export MESSAGING_URLS=nats://…
 python examples/panorama_scan.py --device-id reachy-mini-1 --output ./panorama-out
 ```
 
-Options: `--yaw-steps`, `--body-yaw-steps`, `--max-edge`, `--quality`, `--encoding jpeg|thumbnail`.
+Options: `--full-360` (denser body/head steps), `--yaw-steps`, `--body-yaw-steps`,
+`--pitch-steps`, `--max-edge`, `--quality`, `--encoding jpeg|thumbnail`,
+`--no-align-head-home`, `--body-drift-tolerance-deg`.
+
+Outputs include per-pitch horizontal strips (sorted by estimated world yaw),
+`panorama_grid.jpg` when multiple pitch bands are captured (rows = pitch, not
+feature-matched), and `body_drift_warnings` in the manifest when head moves
+couple into the base. Strips are **contact sheets** for review — not spherical
+stitching; seamless 360° maps need overlap tuning plus a dedicated stitcher or
+better imaging (WebRTC / higher-res — see Video over Device Connect).
 
 **Resolution path:** (1) Today — tune `--max-edge` / `--quality` on
 `capture_video_frame` (stay under NATS limits). (2) Next — call

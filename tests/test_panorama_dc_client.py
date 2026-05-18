@@ -18,6 +18,8 @@ class PanoramaDcClientTests(unittest.IsolatedAsyncioTestCase):
                 return {"success": True, "result": {"status": "accepted"}}
             if function == "look_at_world":
                 return {"success": True, "result": {"status": "accepted"}}
+            if function == "get_body_yaw":
+                return {"success": True, "result": {"status": "success", "yaw_deg": 0.0}}
             if function == "capture_video_frame":
                 return {
                     "success": True,
@@ -27,7 +29,7 @@ class PanoramaDcClientTests(unittest.IsolatedAsyncioTestCase):
                         "encoding": "jpeg",
                         "width": 320,
                         "height": 240,
-                        "data_b64": "aGVsbG8=",  # not valid jpeg; stitch test separate
+                        "data_b64": "aGVsbG8=",
                     },
                 }
             return {"success": False, "error": "unknown"}
@@ -44,6 +46,8 @@ class PanoramaDcClientTests(unittest.IsolatedAsyncioTestCase):
             pitch_steps=[0.0],
             body_yaw_steps=[0.0],
             settle_s=0,
+            align_head_home_at_start=False,
+            verify_body_pose=False,
         )
 
         self.assertEqual(len(calls), 4)  # 2 look + 2 capture
