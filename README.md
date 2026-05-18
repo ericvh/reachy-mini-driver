@@ -15,7 +15,8 @@ Reachy Mini SDK / daemon
 The driver keeps an in-process state mirror for command ownership, leases,
 interlocks, target pose, observed state, execution status, and errors. This
 package targets the current `device_connect_edge` API directly and does not
-depend on Strands Robots (see [Acknowledgments](#acknowledgments)).
+depend on Strands Robots (see [Acknowledgments](#acknowledgments)). For security
+assumptions and deployment tradeoffs, see [SECURITY.md](SECURITY.md).
 
 ## Layout
 
