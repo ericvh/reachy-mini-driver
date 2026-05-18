@@ -2,6 +2,7 @@ import unittest
 
 from reachy_mini_driver.panorama_dc_client import (
     PanoramaDeviceConnectClient,
+    resolve_mesh_settings,
     unwrap_invoke_response,
 )
 from reachy_mini_driver.panorama_scan import capture_panorama_scan
@@ -40,6 +41,7 @@ class PanoramaDcClientTests(unittest.IsolatedAsyncioTestCase):
         scan = await capture_panorama_scan(
             client,
             yaw_steps=[0.0, 30.0],
+            pitch_steps=[0.0],
             body_yaw_steps=[0.0],
             settle_s=0,
         )
@@ -59,6 +61,26 @@ class PanoramaDcClientTests(unittest.IsolatedAsyncioTestCase):
             {"success": True, "result": {"status": "accepted", "target": {"yaw": 1}}}
         )
         self.assertEqual(out["status"], "accepted")
+
+    def test_resolve_mesh_settings_reads_tenant_from_credentials(self):
+        import json
+        import tempfile
+
+        with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as handle:
+            json.dump(
+                {
+                    "device_id": "portal-device-1",
+                    "tenant": "erivan01",
+                    "nats": {"urls": ["nats://portal.deviceconnect.dev:4222"]},
+                },
+                handle,
+            )
+            path = handle.name
+
+        zone, device_id, urls = resolve_mesh_settings(credentials_file=path)
+        self.assertEqual(zone, "erivan01")
+        self.assertEqual(device_id, "portal-device-1")
+        self.assertEqual(urls[0], "nats://portal.deviceconnect.dev:4222")
 
 
 if __name__ == "__main__":

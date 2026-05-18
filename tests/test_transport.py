@@ -5,6 +5,7 @@ from reachy_mini_driver.transport import (
     ReachyHardwareTransport,
     WebSocketReachyTransport,
     _WS_CMD_MAP,
+    encode_reachy_command,
 )
 
 
@@ -24,7 +25,7 @@ class TransportTests(unittest.TestCase):
 
     def test_websocket_body_yaw_message_shape(self):
         command = {"body_yaw": 0.5}
-        message = _WS_CMD_MAP["body_yaw"](command)
+        message = encode_reachy_command(command)
         self.assertEqual(message["type"], "set_body_yaw")
         self.assertEqual(message["body_yaw"], 0.5)
 

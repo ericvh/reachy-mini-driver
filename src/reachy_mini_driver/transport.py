@@ -116,6 +116,14 @@ _WS_CMD_MAP = {
 }
 
 
+def encode_reachy_command(command: dict[str, Any]) -> dict[str, Any]:
+    """Map driver command dicts to daemon WebSocket / wireless topic message shape."""
+    for key, builder in _WS_CMD_MAP.items():
+        if key in command:
+            return builder(command)
+    raise NotImplementedError(f"unsupported Reachy command: {command!r}")
+
+
 class WebSocketReachyTransport:
     """Lite Reachy transport using the daemon WebSocket SDK stream."""
 
@@ -176,11 +184,7 @@ class WebSocketReachyTransport:
     async def send_command(self, command: dict[str, Any]) -> None:
         if self._ws is None:
             raise RuntimeError("WebSocket transport is not connected")
-        for key, builder in _WS_CMD_MAP.items():
-            if key in command:
-                await self._ws.send(json.dumps(builder(command)))
-                return
-        raise NotImplementedError(f"unsupported WebSocket command: {command!r}")
+        await self._ws.send(json.dumps(encode_reachy_command(command)))
 
     async def api(self, path: str, method: str = "GET", data: dict[str, Any] | None = None) -> dict:
         http = HttpReachyTransport(self.host, self.api_port)
@@ -224,9 +228,10 @@ class ZenohReachyTransport:
         return None
 
     async def send_command(self, command: dict[str, Any]) -> None:
+        message = encode_reachy_command(command)
         await self._messaging.publish(
             f"{self._prefix}/command",
-            json.dumps(command).encode(),
+            json.dumps(message).encode(),
         )
 
     async def api(self, path: str, method: str = "GET", data: dict[str, Any] | None = None) -> dict:

@@ -61,12 +61,20 @@ PITCH_MAX_DEG = 30.0
 
 
 def default_yaw_steps(count: int = 5) -> list[float]:
-    """Evenly spaced yaw angles across the driver's allowed range."""
+    """Evenly spaced head yaw angles across the driver's allowed range (±45°)."""
+    return _linspace_steps(YAW_MIN_DEG, YAW_MAX_DEG, count)
+
+
+def default_pitch_steps(count: int = 3) -> list[float]:
+    """Evenly spaced head pitch (inclination / declination) across ±30°."""
+    return _linspace_steps(PITCH_MIN_DEG, PITCH_MAX_DEG, count)
+
+
+def _linspace_steps(lo: float, hi: float, count: int) -> list[float]:
     if count < 2:
-        return [0.0]
-    span = YAW_MAX_DEG - YAW_MIN_DEG
-    step = span / (count - 1)
-    return [YAW_MIN_DEG + step * index for index in range(count)]
+        return [(lo + hi) / 2.0] if count == 1 else [0.0]
+    step = (hi - lo) / (count - 1)
+    return [lo + step * index for index in range(count)]
 
 
 def clamp_head_target(pitch: float, yaw: float) -> tuple[float, float]:
@@ -115,12 +123,28 @@ class PanoramaScanResult:
             return 0.0
         return max(yaws) - min(yaws)
 
+    def _coverage_pitch_deg(self) -> float:
+        pitches = [frame.pitch_deg for frame in self.frames if frame.ok]
+        if len(pitches) < 2:
+            return 0.0
+        return max(pitches) - min(pitches)
+
+    @property
+    def coverage_body_yaw_deg(self) -> float:
+        body = [frame.body_yaw_deg for frame in self.frames if frame.ok]
+        if len(body) < 2:
+            return 0.0
+        return max(body) - min(body)
+
     def to_manifest(self) -> dict[str, Any]:
         return {
             "frame_count": len(self.frames),
             "success_count": self.success_count,
             "coverage_yaw_deg": self.coverage_yaw_deg,
+            "coverage_pitch_deg": self._coverage_pitch_deg(),
+            "coverage_body_yaw_deg": self.coverage_body_yaw_deg,
             "head_yaw_limit_deg": [YAW_MIN_DEG, YAW_MAX_DEG],
+            "head_pitch_limit_deg": [PITCH_MIN_DEG, PITCH_MAX_DEG],
             "frames": [
                 {
                     "index": frame.index,
@@ -150,26 +174,25 @@ def decode_jpeg_from_capture(capture: dict[str, Any]) -> bytes | None:
     return None
 
 
-def default_body_yaw_steps(count: int = 3) -> list[float]:
-    """Evenly spaced body yaw samples across roughly ±120° (within driver limits)."""
+def default_body_yaw_steps(count: int = 3, *, full_range: bool = True) -> list[float]:
+    """Evenly spaced body yaw samples (full range ≈ ±160° when *full_range*)."""
     from reachy_mini_driver.motion_limits import BODY_YAW_MAX_DEG, BODY_YAW_MIN_DEG
 
     if count < 2:
         return [0.0]
-    lo = max(BODY_YAW_MIN_DEG, -120.0)
-    hi = min(BODY_YAW_MAX_DEG, 120.0)
-    span = hi - lo
-    step = span / (count - 1)
-    return [lo + step * index for index in range(count)]
+    if full_range:
+        return _linspace_steps(BODY_YAW_MIN_DEG, BODY_YAW_MAX_DEG, count)
+    return _linspace_steps(max(BODY_YAW_MIN_DEG, -120.0), min(BODY_YAW_MAX_DEG, 120.0), count)
 
 
 async def capture_panorama_scan(
     driver: PanoramaDriver,
     *,
     yaw_steps: Sequence[float] | None = None,
+    pitch_steps: Sequence[float] | None = None,
     body_yaw_steps: Sequence[float] | None = None,
     body_move_duration_s: float = 0.5,
-    pitch_deg: float = 0.0,
+    pitch_deg: float | None = None,
     roll_deg: float = 0.0,
     settle_s: float = 0.35,
     encoding: str = "jpeg",
@@ -177,9 +200,20 @@ async def capture_panorama_scan(
     quality: int | None = None,
     owner: str = "panorama",
 ) -> PanoramaScanResult:
-    """Sweep body yaw (optional) and head yaw, capturing a JPEG at each pose."""
-    head_steps = list(yaw_steps if yaw_steps is not None else default_yaw_steps())
-    body_steps = list(body_yaw_steps if body_yaw_steps is not None else [0.0])
+    """Sweep body yaw, head pitch, and head yaw; capture a JPEG at each pose."""
+    head_yaw_steps = list(yaw_steps if yaw_steps is not None else default_yaw_steps())
+    if pitch_steps is not None:
+        head_pitch_steps = list(pitch_steps)
+    elif pitch_deg is not None:
+        head_pitch_steps = [pitch_deg]
+    else:
+        head_pitch_steps = default_pitch_steps(3)
+
+    if body_yaw_steps is not None:
+        body_steps = list(body_yaw_steps)
+    else:
+        body_steps = [0.0]
+
     result = PanoramaScanResult(encoding=encoding, owner=owner)
     frame_index = 0
 
@@ -190,35 +224,37 @@ async def capture_panorama_scan(
                 duration_s=body_move_duration_s,
                 owner=owner,
             )
-            if settle_s > 0:
-                await asyncio.sleep(settle_s)
+            wait_s = max(settle_s, body_move_duration_s)
+            if wait_s > 0:
+                await asyncio.sleep(wait_s)
 
-        for yaw in head_steps:
-            pitch, yaw_clamped = clamp_head_target(pitch_deg, yaw)
-            look = await driver.look_at_world(
-                pitch=pitch,
-                roll=roll_deg,
-                yaw=yaw_clamped,
-                owner=owner,
-            )
-            if settle_s > 0:
-                await asyncio.sleep(settle_s)
-            capture = await driver.capture_video_frame(
-                encoding=encoding,
-                max_edge=max_edge,
-                quality=quality,
-            )
-            frame = PanoramaFrame(
-                index=frame_index,
-                body_yaw_deg=body_yaw_deg,
-                pitch_deg=pitch,
-                yaw_deg=yaw_clamped,
-                look_result=look,
-                capture_result=capture,
-                jpeg_bytes=decode_jpeg_from_capture(capture),
-            )
-            result.frames.append(frame)
-            frame_index += 1
+        for pitch_target in head_pitch_steps:
+            for yaw in head_yaw_steps:
+                pitch, yaw_clamped = clamp_head_target(pitch_target, yaw)
+                look = await driver.look_at_world(
+                    pitch=pitch,
+                    roll=roll_deg,
+                    yaw=yaw_clamped,
+                    owner=owner,
+                )
+                if settle_s > 0:
+                    await asyncio.sleep(settle_s)
+                capture = await driver.capture_video_frame(
+                    encoding=encoding,
+                    max_edge=max_edge,
+                    quality=quality,
+                )
+                frame = PanoramaFrame(
+                    index=frame_index,
+                    body_yaw_deg=body_yaw_deg,
+                    pitch_deg=pitch,
+                    yaw_deg=yaw_clamped,
+                    look_result=look,
+                    capture_result=capture,
+                    jpeg_bytes=decode_jpeg_from_capture(capture),
+                )
+                result.frames.append(frame)
+                frame_index += 1
 
     return result
 
@@ -280,8 +316,8 @@ def save_scan_artifacts(
         if frame.jpeg_bytes is None:
             continue
         path = root / (
-            f"frame_{frame.index:02d}_body_{frame.body_yaw_deg:+.0f}"
-            f"_head_{frame.yaw_deg:+.0f}.jpg"
+            f"frame_{frame.index:03d}_body_{frame.body_yaw_deg:+.0f}"
+            f"_pitch_{frame.pitch_deg:+.0f}_yaw_{frame.yaw_deg:+.0f}.jpg"
         )
         path.write_bytes(frame.jpeg_bytes)
         paths[f"frame_{frame.index}"] = str(path)
@@ -292,9 +328,22 @@ def save_scan_artifacts(
 
     ok_frames = [frame for frame in scan.frames if frame.ok]
     if ok_frames:
-        strip_bytes = stitch_horizontal_jpeg(ok_frames)
-        strip_path = root / strip_name
-        strip_path.write_bytes(strip_bytes)
-        paths["strip"] = str(strip_path)
+        strips_dir = root / "strips"
+        strips_dir.mkdir(exist_ok=True)
+        pitches = sorted({frame.pitch_deg for frame in ok_frames})
+        for pitch in pitches:
+            band = [frame for frame in ok_frames if frame.pitch_deg == pitch]
+            if not band:
+                continue
+            strip_bytes = stitch_horizontal_jpeg(band)
+            pitch_path = strips_dir / f"strip_pitch_{pitch:+.0f}.jpg".replace("+", "p").replace("-", "m")
+            pitch_path.write_bytes(strip_bytes)
+            paths[f"strip_pitch_{pitch:+.0f}"] = str(pitch_path)
+
+        if len(ok_frames) <= 24:
+            strip_bytes = stitch_horizontal_jpeg(ok_frames)
+            strip_path = root / strip_name
+            strip_path.write_bytes(strip_bytes)
+            paths["strip"] = str(strip_path)
 
     return paths

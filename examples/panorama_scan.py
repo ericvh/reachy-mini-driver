@@ -29,6 +29,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -40,11 +41,13 @@ from reachy_mini_driver.panorama_dc_client import (
     PanoramaDeviceConnectClient,
     connect_mesh,
     disconnect_mesh,
+    resolve_mesh_settings,
     wait_for_device,
 )
 from reachy_mini_driver.panorama_scan import (
     capture_panorama_scan,
     default_body_yaw_steps,
+    default_pitch_steps,
     default_yaw_steps,
     save_scan_artifacts,
 )
@@ -52,10 +55,12 @@ from reachy_mini_driver.panorama_scan import (
 
 async def run_scan(
     *,
-    device_id: str,
+    device_id: str | None,
+    credentials_file: str | None,
+    tenant: str | None,
     output: Path,
     yaw_steps: int,
-    pitch: float,
+    pitch_steps: int,
     settle_s: float,
     body_yaw_steps: int,
     body_move_s: float,
@@ -64,34 +69,51 @@ async def run_scan(
     encoding: str,
     wait_timeout_s: float,
 ) -> int:
-    connect_mesh()
+    zone, resolved_id, _urls = resolve_mesh_settings(
+        credentials_file=credentials_file,
+        tenant=tenant,
+        device_id=device_id,
+    )
+    if not resolved_id:
+        raise SystemExit(
+            "No device id. Pass --device-id or --credentials-file with a portal JSON "
+            "that includes device_id."
+        )
+    zone = connect_mesh(credentials_file=credentials_file, tenant=tenant)
     try:
         device = await asyncio.to_thread(
-            wait_for_device, device_id, timeout_s=wait_timeout_s
+            wait_for_device, resolved_id, timeout_s=wait_timeout_s
         )
-        print(f"Device Connect: found {device.get('device_id')} ({device.get('device_type')})")
+        print(
+            f"Device Connect: tenant={zone} device={device.get('device_id')} "
+            f"({device.get('device_type')})"
+        )
 
         client = PanoramaDeviceConnectClient(
-            device_id=device_id,
+            device_id=resolved_id,
             owner="panorama",
             encoding=encoding,
             max_edge=max_edge,
             quality=quality,
         )
 
-        steps = default_yaw_steps(yaw_steps)
-        body_steps = default_body_yaw_steps(body_yaw_steps) if body_yaw_steps > 1 else [0.0]
+        yaw_list = default_yaw_steps(yaw_steps)
+        pitch_list = default_pitch_steps(pitch_steps)
+        body_list = default_body_yaw_steps(body_yaw_steps) if body_yaw_steps > 1 else [0.0]
+        total = len(body_list) * len(pitch_list) * len(yaw_list)
         print(
-            f"Panorama scan via invoke_device: {len(body_steps)} body × {len(steps)} head yaw "
-            f"(encoding={encoding}, max_edge={max_edge}, quality={quality})"
+            f"Panorama scan via invoke_device: {len(body_list)} body "
+            f"(≈±160°) × {len(pitch_list)} pitch (≈±30°) × {len(yaw_list)} yaw "
+            f"(±45°) = {total} frames"
         )
+        print(f"encoding={encoding} max_edge={max_edge} quality={quality}")
 
         scan = await capture_panorama_scan(
             client,
-            yaw_steps=steps,
-            body_yaw_steps=body_steps,
+            yaw_steps=yaw_list,
+            pitch_steps=pitch_list,
+            body_yaw_steps=body_list,
             body_move_duration_s=body_move_s,
-            pitch_deg=pitch,
             settle_s=settle_s,
             encoding=encoding,
             owner="panorama",
@@ -99,7 +121,8 @@ async def run_scan(
 
         manifest = scan.to_manifest()
         manifest["device_connect"] = {
-            "device_id": device_id,
+            "tenant": zone,
+            "device_id": resolved_id,
             "encoding": encoding,
             "max_edge": max_edge,
             "quality": quality,
@@ -115,11 +138,14 @@ async def run_scan(
 
         print(json.dumps(manifest, indent=2))
         print(f"Saved {scan.success_count}/{len(scan.frames)} frames under {output}")
-        if "strip" in paths:
-            print(f"Horizontal strip: {paths['strip']}")
-            return 0
-        print("No strip written (no successful frames).", file=sys.stderr)
-        return 1
+        strip_paths = [value for key, value in paths.items() if key.startswith("strip")]
+        for label, path in sorted(paths.items()):
+            if label.startswith("strip"):
+                print(f"Strip: {path}")
+        if not strip_paths:
+            print("No strips written (no successful frames).", file=sys.stderr)
+            return 1
+        return 0
     finally:
         disconnect_mesh()
 
@@ -128,8 +154,18 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--device-id",
-        default="reachy-mini-1",
-        help="Device Connect device id (must match running driver)",
+        default=None,
+        help="Device Connect device id (default: from --credentials-file or reachy-mini-1)",
+    )
+    parser.add_argument(
+        "--credentials-file",
+        default=None,
+        help="Portal credentials JSON (sets NATS file, tenant, device_id if omitted)",
+    )
+    parser.add_argument(
+        "--tenant",
+        default=None,
+        help="Device Connect tenant zone (default: TENANT env or credentials file)",
     )
     parser.add_argument(
         "--output",
@@ -147,13 +183,13 @@ def main() -> None:
         "--yaw-steps",
         type=int,
         default=5,
-        help="Head yaw samples across [-45, 45] degrees",
+        help="Head yaw samples across [-45, 45] degrees (max pan)",
     )
     parser.add_argument(
-        "--pitch",
-        type=float,
-        default=0.0,
-        help="Fixed head pitch in degrees",
+        "--pitch-steps",
+        type=int,
+        default=3,
+        help="Head pitch samples: declination / level / inclination across [-30, 30]",
     )
     parser.add_argument(
         "--settle-s",
@@ -164,8 +200,8 @@ def main() -> None:
     parser.add_argument(
         "--body-yaw-steps",
         type=int,
-        default=0,
-        help="If >1, sweep body yaw (±120°); 0 = body at 0° only",
+        default=5,
+        help="Body yaw samples across full range (≈±160°); use 1 to keep body at 0°",
     )
     parser.add_argument(
         "--body-move-s",
@@ -193,15 +229,20 @@ def main() -> None:
     )
     args = parser.parse_args()
 
+    if args.credentials_file:
+        os.environ.setdefault("NATS_CREDENTIALS_FILE", str(Path(args.credentials_file).expanduser()))
+
     try:
         code = asyncio.run(
             run_scan(
                 device_id=args.device_id,
+                credentials_file=args.credentials_file,
+                tenant=args.tenant,
                 output=args.output,
                 yaw_steps=max(2, args.yaw_steps),
-                pitch=args.pitch,
+                pitch_steps=max(1, args.pitch_steps),
                 settle_s=args.settle_s,
-                body_yaw_steps=args.body_yaw_steps,
+                body_yaw_steps=max(1, args.body_yaw_steps),
                 body_move_s=args.body_move_s,
                 max_edge=args.max_edge,
                 quality=args.quality,

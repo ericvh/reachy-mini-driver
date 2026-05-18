@@ -23,6 +23,7 @@ class PanoramaScanTests(unittest.IsolatedAsyncioTestCase):
         scan = await capture_panorama_scan(
             driver,
             yaw_steps=[-30.0, 0.0, 30.0],
+            pitch_steps=[0.0],
             settle_s=0,
         )
         await driver.disconnect()
@@ -34,7 +35,9 @@ class PanoramaScanTests(unittest.IsolatedAsyncioTestCase):
     async def test_stitch_and_save_artifacts(self):
         driver = ReachyMiniDriver(transport=SimReachyTransport(), media=SimMediaClient())
         await driver.connect()
-        scan = await capture_panorama_scan(driver, yaw_steps=[-20.0, 20.0], settle_s=0)
+        scan = await capture_panorama_scan(
+            driver, yaw_steps=[-20.0, 20.0], pitch_steps=[0.0], settle_s=0
+        )
         await driver.disconnect()
 
         strip = stitch_horizontal_jpeg(scan.frames)
