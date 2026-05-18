@@ -74,11 +74,15 @@ To expose the device to an MCP client, run the Device Connect MCP bridge from
 `device-connect-agent-tools`:
 
 ```bash
+export NATS_CREDENTIALS_FILE=~/Downloads/your-portal.creds.json
 python -m device_connect_agent_tools.mcp
 ```
 
 The MCP client should see `describe_fleet`, `list_devices`,
 `get_device_functions`, and `invoke_device`.
+
+**Agents and Cursor:** see [AGENTS.md](AGENTS.md) for portal credentials, tenant zone,
+and `connect_mesh()` — avoids the common wrong-tenant / wrong-broker failure loop.
 
 ## Reachy Mini app (dashboard + HF Spaces)
 

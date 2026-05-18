@@ -1,8 +1,8 @@
 import unittest
 
+from reachy_mini_driver.mesh import resolve_mesh_settings
 from reachy_mini_driver.panorama_dc_client import (
     PanoramaDeviceConnectClient,
-    resolve_mesh_settings,
     unwrap_invoke_response,
 )
 from reachy_mini_driver.panorama_scan import capture_panorama_scan
