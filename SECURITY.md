@@ -7,11 +7,13 @@ noted.
 
 ## Scope and deployment shapes
 
-| Shape | Driver runs on | Typical control path | Main exposure |
-|-------|----------------|----------------------|---------------|
-| **Dev / lab** | Laptop | Local NATS + `DEVICE_CONNECT_ALLOW_INSECURE=true` | Open mesh, plain HTTP to robot |
-| **On-robot app** | Reachy | Dashboard settings UI + loopback daemon | LAN settings UI, portal creds on disk |
+
+| Shape               | Driver runs on     | Typical control path                                 | Main exposure                                |
+| ------------------- | ------------------ | ---------------------------------------------------- | -------------------------------------------- |
+| **Dev / lab**       | Laptop             | Local NATS + `DEVICE_CONNECT_ALLOW_INSECURE=true`    | Open mesh, plain HTTP to robot               |
+| **On-robot app**    | Reachy             | Dashboard settings UI + loopback daemon              | LAN settings UI, portal creds on disk        |
 | **Portal / remote** | Robot or edge host | `nats://portal.deviceconnect.dev` + `.json`/`.creds` | Anyone with mesh credentials can invoke RPCs |
+
 
 The driver is **not** a safety-certified robot controller. It forwards bounded
 motion and media commands to the Reachy daemon and mirrors state for agents.
@@ -43,13 +45,15 @@ upload portal credential files.
 
 ## Assets
 
-| Asset | Why it matters |
-|-------|----------------|
-| **Physical robot** | Motion can collide with people or objects; sleep/wake affects availability |
-| **Camera / microphone** | Privacy-sensitive; frames and audio samples leave the robot via RPC or side channels |
-| **Portal / NATS credentials** | Grant mesh membership for `invoke_device` on registered devices |
-| **Driver settings file** | `~/.config/reachy_mini_driver/device_connect_app.json` — portal paths, `allow_insecure`, targets |
-| **Command ownership metadata** | `command_owner` / lease fields in `driver_state` (advisory, see below) |
+
+| Asset                          | Why it matters                                                                                   |
+| ------------------------------ | ------------------------------------------------------------------------------------------------ |
+| **Physical robot**             | Motion can collide with people or objects; sleep/wake affects availability                       |
+| **Camera / microphone**        | Privacy-sensitive; frames and audio samples leave the robot via RPC or side channels             |
+| **Portal / NATS credentials**  | Grant mesh membership for `invoke_device` on registered devices                                  |
+| **Driver settings file**       | `~/.config/reachy_mini_driver/device_connect_app.json` — portal paths, `allow_insecure`, targets |
+| **Command ownership metadata** | `command_owner` / lease fields in `driver_state` (advisory, see below)                           |
+
 
 ## Threat actors (representative)
 
@@ -61,18 +65,20 @@ upload portal credential files.
 
 ## Controls in this package
 
-| Control | What it does | Limitation |
-|---------|----------------|------------|
-| **Kinematic RPC bounds** | `look_at_world`, `set_body_yaw`, `antenna_pose` clamp angles/ranges before daemon I/O | Does not replace workspace fencing or human oversight |
-| **`assert_motion_allowed()`** | Blocks motion when `interlock_state != "safe"` | Interlock is only checked here; nothing in-tree sets a non-`safe` interlock today |
-| **Lease / `command_owner` fields** | Recorded on motion RPCs (`set_target`) and exposed in `get_status` | **Not enforced** — a new caller can issue motion without waiting for lease expiry |
-| **`safety_event` emit** | Hook for upstream to observe rejections | Emission path exists; interlock-driven stops are not wired |
-| **JPEG / thumbnail encoding** | Caps RPC payload size (~900 KiB JSON) for portal NATS stability | Reduces accidental broker DoS; not a confidentiality control |
-| **`raw` encoding guard** | Rejects oversized raw frames unless explicitly allowed with warning | Dev-only; can still harm local NATS |
-| **Credential upload limits** | `.json`/`.creds` only, 256 KiB max, basename-only filename | Does not encrypt at rest or authenticate the uploader |
-| **Portal default off** | App starts without cloud mesh until configured | Misconfiguration via env or UI still possible |
-| **`allow_insecure` default false** | Passed to `device_connect_edge.DeviceRuntime` | README examples and MCP sample config use insecure mode for local dev |
-| **Low-level events** | `audio_event` / `motion_event` expose RMS/delta metrics, not ASR or object labels | Reduces accidental semantic leakage over NATS; does not hide raw media RPCs |
+
+| Control                            | What it does                                                                          | Limitation                                                                        |
+| ---------------------------------- | ------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| **Kinematic RPC bounds**           | `look_at_world`, `set_body_yaw`, `antenna_pose` clamp angles/ranges before daemon I/O | Does not replace workspace fencing or human oversight                             |
+| `**assert_motion_allowed()`**      | Blocks motion when `interlock_state != "safe"`                                        | Interlock is only checked here; nothing in-tree sets a non-`safe` interlock today |
+| **Lease / `command_owner` fields** | Recorded on motion RPCs (`set_target`) and exposed in `get_status`                    | **Not enforced** — a new caller can issue motion without waiting for lease expiry |
+| `**safety_event` emit**            | Hook for upstream to observe rejections                                               | Emission path exists; interlock-driven stops are not wired                        |
+| **JPEG / thumbnail encoding**      | Caps RPC payload size (~900 KiB JSON) for portal NATS stability                       | Reduces accidental broker DoS; not a confidentiality control                      |
+| `**raw` encoding guard**           | Rejects oversized raw frames unless explicitly allowed with warning                   | Dev-only; can still harm local NATS                                               |
+| **Credential upload limits**       | `.json`/`.creds` only, 256 KiB max, basename-only filename                            | Does not encrypt at rest or authenticate the uploader                             |
+| **Portal default off**             | App starts without cloud mesh until configured                                        | Misconfiguration via env or UI still possible                                     |
+| `**allow_insecure` default false** | Passed to `device_connect_edge.DeviceRuntime`                                         | README examples and MCP sample config use insecure mode for local dev             |
+| **Low-level events**               | `audio_event` / `motion_event` expose RMS/delta metrics, not ASR or object labels     | Reduces accidental semantic leakage over NATS; does not hide raw media RPCs       |
+
 
 ## Inherited and external controls
 
@@ -86,14 +92,16 @@ Rely on these outside this repository:
 
 ## STRIDE summary
 
-| Category | Example threat | Mitigation today | Residual risk |
-|----------|----------------|------------------|---------------|
-| **Spoofing** | Caller poses as another `owner` string on RPC | Owner is an unauthenticated string parameter | Audit logs only; no cryptographic caller identity |
-| **Tampering** | LAN client changes settings or daemon API | No auth on settings UI or plain HTTP daemon | Restrict LAN; restart driver after trusted config |
-| **Repudiation** | Agent denies ordering a motion | Driver logs to stderr; no append-only audit bus | Enable centralized logging if required |
+
+| Category                   | Example threat                                           | Mitigation today                                      | Residual risk                                        |
+| -------------------------- | -------------------------------------------------------- | ----------------------------------------------------- | ---------------------------------------------------- |
+| **Spoofing**               | Caller poses as another `owner` string on RPC            | Owner is an unauthenticated string parameter          | Audit logs only; no cryptographic caller identity    |
+| **Tampering**              | LAN client changes settings or daemon API                | No auth on settings UI or plain HTTP daemon           | Restrict LAN; restart driver after trusted config    |
+| **Repudiation**            | Agent denies ordering a motion                           | Driver logs to stderr; no append-only audit bus       | Enable centralized logging if required               |
 | **Information disclosure** | `capture_video_frame` / `capture_audio_sample` over mesh | Prefer JPEG/thumbnail; use WebRTC side channel for HD | Any mesh member with invoke rights can request media |
-| **Denial of service** | Large `raw` frames or tight motion loops | Payload size checks; bounded angle ranges | Broker or daemon can still be stressed |
-| **Elevation** | Upload creds via `:8842`, join portal, control robot | File type/size checks only | Treat settings port like root on robot config |
+| **Denial of service**      | Large `raw` frames or tight motion loops                 | Payload size checks; bounded angle ranges             | Broker or daemon can still be stressed               |
+| **Elevation**              | Upload creds via `:8842`, join portal, control robot     | File type/size checks only                            | Treat settings port like root on robot config        |
+
 
 ## Deliberate tradeoffs
 
@@ -102,18 +110,20 @@ Rely on these outside this repository:
 3. **Unauthenticated settings UI** — Simplifies robot bring-up (upload `.creds`, set `127.0.0.1:8000`). Acceptable only on a **trusted LAN**; do not expose `8842` to the internet or guest Wi‑Fi.
 4. **Plain HTTP / WS to daemon** — Matches Reachy’s default local API. On-robot `127.0.0.1:8000` limits remote tampering; remote `REACHY_TARGET` over LAN is trust-on-LAN.
 5. **WebRTC and GStreamer side channels** — `get_media_stream_access` intentionally moves bulk video off NATS. Firewall and VPN policy must cover `:8443` (and local IPC paths on-robot).
-6. **`DEVICE_CONNECT_ALLOW_INSECURE`** — Documented for local smoke tests and `examples/claude_desktop_config.json`. **Disable** for portal or any shared broker.
+6. `**DEVICE_CONNECT_ALLOW_INSECURE`** — Documented for local smoke tests and `examples/claude_desktop_config.json`. **Disable** for portal or any shared broker.
 7. **Simulation target** — `--sim` does not touch hardware but still registers a device on the mesh if connected; use distinct `device_id` values to avoid operator confusion.
 
 ## Recommended deployments
 
-| Goal | Suggestion |
-|------|------------|
-| **Production portal** | Portal on, `allow_insecure=false`, credentials via env (not committed), unique `device_id`, broker ACLs reviewed |
-| **On-robot app** | Bind settings UI to LAN firewall rules; upload creds once, then restrict `:8842`; keep `reachy_target=127.0.0.1:8000` |
-| **Dev laptop** | Local NATS only, sim device id, insecure flag acceptable on loopback |
-| **Media privacy** | Default to `jpeg`/`thumbnail` over mesh; WebRTC only to known clients; disable `[media]` if camera/mic RPCs are not needed |
-| **Multi-agent** | Single supervisor or external mutex; do not assume driver leases serialize callers |
+
+| Goal                  | Suggestion                                                                                                                 |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| **Production portal** | Portal on, `allow_insecure=false`, credentials via env (not committed), unique `device_id`, broker ACLs reviewed           |
+| **On-robot app**      | Bind settings UI to LAN firewall rules; upload creds once, then restrict `:8842`; keep `reachy_target=127.0.0.1:8000`      |
+| **Dev laptop**        | Local NATS only, sim device id, insecure flag acceptable on loopback                                                       |
+| **Media privacy**     | Default to `jpeg`/`thumbnail` over mesh; WebRTC only to known clients; disable `[media]` if camera/mic RPCs are not needed |
+| **Multi-agent**       | Single supervisor or external mutex; do not assume driver leases serialize callers                                         |
+
 
 ## Out of scope (today)
 
